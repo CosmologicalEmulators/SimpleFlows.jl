@@ -88,6 +88,29 @@ using LinearAlgebra
                 gf = ForwardDiff.gradient(f, x)
                 @test gz ≈ gf atol=T == Float32 ? 1e-4 : 1e-10
             end
+            
+            @testset "Boundary & Tail Consistency" begin
+                # x explicitly outside the tail_bound
+                x_out = T.([-4.0, 4.0, -10.0, 10.0])
+                N = length(x_out)
+                K = 5
+                w = randn(T, N, K)
+                h = randn(T, N, K)
+                dv = randn(T, N, K-1)
+                
+                # Forward should be strict linear identity outside bounds
+                y_out, lad_out = unconstrained_rational_quadratic_spline(x_out, w, h, dv, T(3.0))
+                
+                @test y_out ≈ x_out atol=1e-6
+                @test lad_out ≈ zeros(T, N) atol=1e-6
+                
+                # Inverse should also be strict identity
+                x_rec, lad_inv = unconstrained_rational_quadratic_spline(x_out, w, h, dv, T(3.0); inverse=true)
+                
+                @test x_rec ≈ x_out atol=1e-6
+                @test lad_inv ≈ zeros(T, N) atol=1e-6
+            end
         end
+
     end
 end
