@@ -52,3 +52,34 @@ end
     @test all(isfinite, lp)
 end
 
+@testset "Reparameterization Trick Zygote Gradients" begin
+    rng = Random.default_rng()
+    Random.seed!(rng, 100)
+    
+    dims = 2
+    
+    # We test that we can differentiate a loss function evaluated on the output of draw_samples.
+    # This proves that our flows support the reparameterization trick natively.
+    for arch in [:RealNVP, :NSF, :MAF]
+        flow = FlowDistribution(Float32; architecture=arch, n_transforms=1, dist_dims=dims,
+                                hidden_layer_sizes=[16], K=4, tail_bound=2.0, rng)
+        
+        # We need a stable test_rng since draw_samples is stochastic.
+        # Zygote can sometimes struggle with capturing global RNGs during AD, so we pass one explicitly
+        # and ignore the derivative with respect to it (which is 0).
+        test_rng = Random.default_rng()
+        Random.seed!(test_rng, 42)
+        
+        function loss_fn(ps)
+            x_samples = SimpleFlows.draw_samples(test_rng, Float32, flow.model, ps, flow.st, 10)
+            return sum(x_samples.^2)
+        end
+        
+        loss, (dps,) = Zygote.withgradient(loss_fn, flow.ps)
+        
+        @test isfinite(loss)
+        @test !isnothing(dps)
+    end
+end
+
+
