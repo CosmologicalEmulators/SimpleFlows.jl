@@ -11,8 +11,8 @@ A trained normalizing flow wrapped as a `Distributions.jl`
 - `n_dims`, `hidden_dims`, `n_layers`: architecture metadata for serialization
 - `normalizer`: fitted `MinMaxNormalizer` (always present after training)
 """
-mutable struct FlowDistribution{T<:Real} <: ContinuousMultivariateDistribution
-    model              :: RealNVP
+mutable struct FlowDistribution{T<:Real, M<:AbstractLuxLayer} <: ContinuousMultivariateDistribution
+    model              :: M
     ps
     st
     n_dims             :: Int
@@ -21,31 +21,37 @@ mutable struct FlowDistribution{T<:Real} <: ContinuousMultivariateDistribution
 end
 
 """
-    FlowDistribution([Type=Float32]; n_transforms, dist_dims, hidden_layer_sizes,
-                       hidden_dims=64, n_layers=3,
-                       activation=gelu, rng=Random.default_rng())
+    FlowDistribution([Type=Float32]; architecture=:RealNVP, n_transforms, dist_dims, 
+                       hidden_layer_sizes, hidden_dims=64, n_layers=3,
+                       activation=gelu, rng=Random.default_rng(), K=8, tail_bound=3.0)
 
 Construct and randomly initialise a `FlowDistribution`.
-
-`hidden_layer_sizes` sets the width of each hidden layer independently.
-For convenience, you may pass `hidden_dims` and `n_layers` instead, which will
-expand to `fill(hidden_dims, n_layers)`.
-The `normalizer` field is `nothing` until `train_flow!` is called.
+`architecture` can be `:RealNVP` or `:NSF`.
 """
 function FlowDistribution(::Type{T}=Float32;
+                            architecture=:RealNVP,
                             n_transforms::Int, dist_dims::Int,
                             hidden_layer_sizes::Vector{Int}=Int[],
                             hidden_dims::Int=64, n_layers::Int=3,
                             activation=gelu,
+                            K=8, tail_bound=3.0,
                             rng::AbstractRNG=Random.default_rng()) where {T<:Real}
     # If no vector given, fall back to the scalar convenience args
     if isempty(hidden_layer_sizes)
         hidden_layer_sizes = fill(hidden_dims, n_layers)
     end
-    model = RealNVP(; n_transforms, dist_dims, hidden_layer_sizes, activation)
+    
+    model = if architecture == :RealNVP
+        RealNVP(; n_transforms, dist_dims, hidden_layer_sizes, activation)
+    elseif architecture == :NSF
+        NeuralSplineFlow(; n_transforms, dist_dims, hidden_layer_sizes, K, tail_bound, activation)
+    else
+        error("Unknown architecture: $architecture. Supported: :RealNVP, :NSF")
+    end
+    
     ps, st = Lux.setup(rng, model)
     ps = Lux.fmap(x -> x isa AbstractArray ? T.(x) : x, ps)
-    return FlowDistribution{T}(model, ps, st, dist_dims, hidden_layer_sizes, nothing)
+    return FlowDistribution{T, typeof(model)}(model, ps, st, dist_dims, hidden_layer_sizes, nothing)
 end
 
 # ── Distributions.jl interface ────────────────────────────────────────────────

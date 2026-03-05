@@ -34,30 +34,45 @@ end
 # ── Architecture dict ─────────────────────────────────────────────────────────
 
 function _flow_to_dict(flow::FlowDistribution)
-    return Dict(
-        "architecture"      => "RealNVP",
+    d = Dict(
+        "architecture"      => (flow.model isa RealNVP ? "RealNVP" : "NSF"),
         "n_transforms"      => flow.model.n_transforms,
         "dist_dims"         => flow.n_dims,
         "hidden_layer_sizes" => flow.hidden_layer_sizes,
         "activation"        => "gelu",
     )
+    if flow.model isa NeuralSplineFlow
+        d["K"] = flow.model.K
+        d["tail_bound"] = flow.model.tail_bound
+    end
+    return d
 end
 
 function _build_flow_from_dict(d::AbstractDict, ::Type{T}=Float32, rng::AbstractRNG=Random.default_rng()) where {T<:Real}
     arch = d["architecture"]
-    arch == "RealNVP" || error("Unknown architecture: $arch")
+    arch_sym = (arch == "RealNVP" ? :RealNVP : :NSF)
+    
     # Support both new (hidden_layer_sizes) and legacy (hidden_dims + n_layers) formats
     hidden_layer_sizes = if haskey(d, "hidden_layer_sizes")
         Int.(d["hidden_layer_sizes"])
     else
         fill(Int(d["hidden_dims"]), Int(d["n_layers"]))
     end
-    return FlowDistribution(T;
-        n_transforms       = Int(d["n_transforms"]),
-        dist_dims          = Int(d["dist_dims"]),
-        hidden_layer_sizes = hidden_layer_sizes,
-        rng,
+    
+    kwargs = Dict{Symbol, Any}(
+        :architecture       => arch_sym,
+        :n_transforms       => Int(d["n_transforms"]),
+        :dist_dims          => Int(d["dist_dims"]),
+        :hidden_layer_sizes => hidden_layer_sizes,
+        :rng                => rng,
     )
+    
+    if arch == "NSF"
+        kwargs[:K] = Int(d["K"])
+        kwargs[:tail_bound] = Float64(d["tail_bound"])
+    end
+    
+    return FlowDistribution(T; kwargs...)
 end
 
 # ── Public API ────────────────────────────────────────────────────────────────

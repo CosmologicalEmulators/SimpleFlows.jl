@@ -9,4 +9,6 @@ rng = Random.MersenneTwister(42)
     include("test_realnvp.jl")
     include("test_io.jl")
     include("test_normalizer.jl")
+    include("test_splines.jl")
+    include("test_nsf.jl")
 end
