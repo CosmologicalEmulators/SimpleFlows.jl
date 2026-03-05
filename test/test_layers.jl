@@ -28,7 +28,7 @@ end
     mask = Bool.(collect(1:n) .% 2 .== 0)   # [false, true, false, true, false, true]
 
     # Trivial conditioner: returns zeros (identity bijector)
-    conditioner = x_cond -> zeros(Float32, 2n, B)
+    conditioner = x_cond -> zeros(Float32, 2*sum(mask), B)
     bj = SimpleFlows.MaskedCoupling(mask, conditioner, SimpleFlows.AffineBijector)
 
     x = randn(rng, Float32, n, B)

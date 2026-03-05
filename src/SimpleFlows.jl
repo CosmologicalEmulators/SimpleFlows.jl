@@ -18,9 +18,9 @@ include("distribution.jl")
 include("training.jl")
 include("io.jl")
 
-export RealNVP, NeuralSplineFlow, MaskedAutoregressiveFlow, FlowDistribution, NSFCouplingLayer
+export RealNVP, NeuralSplineFlow, MaskedAutoregressiveFlow, FlowDistribution
 export MinMaxNormalizer
-export train_flow!, save_trained_flow, load_trained_flow
+export train_flow!, save_trained_flow, load_trained_flow, normalize, denormalize
 export unconstrained_rational_quadratic_spline
 
 end

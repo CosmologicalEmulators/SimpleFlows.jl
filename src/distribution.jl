@@ -62,12 +62,12 @@ Distributions.length(d::FlowDistribution) = d.n_dims
 
 function _apply_normalizer(d::FlowDistribution{T}, x::AbstractMatrix{<:Real}) where {T}
     isnothing(d.normalizer) && return x, zero(T)
-    return normalize(d.normalizer, x), d.normalizer.log_jac
+    return SimpleFlows.normalize(d.normalizer, x), d.normalizer.log_jac
 end
 
 function _apply_normalizer(d::FlowDistribution{T}, x::AbstractVector{<:Real}) where {T}
     isnothing(d.normalizer) && return x, zero(T)
-    return normalize(d.normalizer, x), d.normalizer.log_jac
+    return SimpleFlows.normalize(d.normalizer, x), d.normalizer.log_jac
 end
 
 function Distributions.logpdf(d::FlowDistribution, x::AbstractVector{<:Real})
@@ -85,14 +85,14 @@ end
 
 function Base.rand(rng::AbstractRNG, d::FlowDistribution{T}) where {T}
     z = draw_samples(rng, T, d.model, d.ps, d.st, 1)
-    x = isnothing(d.normalizer) ? z : denormalize(d.normalizer, z)
+    x = isnothing(d.normalizer) ? z : SimpleFlows.denormalize(d.normalizer, z)
     return T.(vec(x))
 end
 
 function Distributions.rand(rng::AbstractRNG, d::FlowDistribution{T}, n::Int) where {T}
     z = draw_samples(rng, T, d.model, d.ps, d.st, n)
     isnothing(d.normalizer) && return z
-    return denormalize(d.normalizer, z)
+    return SimpleFlows.denormalize(d.normalizer, z)
 end
 
 # ── Bijectors.jl interface ───────────────────────────────────────────────────

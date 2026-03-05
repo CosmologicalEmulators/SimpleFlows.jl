@@ -27,7 +27,7 @@ function log_prob(model::Union{RealNVP, NeuralSplineFlow, MaskedAutoregressiveFl
             bj = if model isa RealNVP
                 MaskedCoupling(mask, cond_fn, AffineBijector)
             else
-                MaskedCoupling(mask, cond_fn, p -> NSFCouplingBijector_from_flat(p, mask, model.K, model.tail_bound))
+                MaskedCoupling(mask, cond_fn, p -> NSFCouplingBijector_from_flat(p, model.K, model.tail_bound))
             end
             x, ld = inverse_and_log_det(bj, x)
         end
@@ -69,7 +69,7 @@ function draw_samples(rng::AbstractRNG, ::Type{T}, model::Union{RealNVP, NeuralS
             bj = if model isa RealNVP
                 MaskedCoupling(mask, cond_fn, AffineBijector)
             else
-                MaskedCoupling(mask, cond_fn, p -> NSFCouplingBijector_from_flat(p, mask, model.K, model.tail_bound))
+                MaskedCoupling(mask, cond_fn, p -> NSFCouplingBijector_from_flat(p, model.K, model.tail_bound))
             end
             
             x, _ = forward_and_log_det(bj, x)

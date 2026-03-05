@@ -20,9 +20,10 @@ function train_flow!(flow::FlowDistribution{T}, data::AbstractMatrix;
                      batch_size::Int=256,
                      verbose::Bool=true,
                      opt=nothing) where {T}
-    # Always fit and apply a min-max normalizer
+    # 5. Fit & Attach Normalizer (on the first batch or full data)
+    # We fit it on the full training data for simplicity
     flow.normalizer = MinMaxNormalizer(T.(data))
-    data_T = normalize(flow.normalizer, T.(data))
+    data_norm = SimpleFlows.normalize(flow.normalizer, data)
 
     actual_opt = if isnothing(opt)
         actual_lr = isnothing(lr) ? T(1f-3) : T(lr)
@@ -32,7 +33,7 @@ function train_flow!(flow::FlowDistribution{T}, data::AbstractMatrix;
     end
     opt_state = Optimisers.setup(actual_opt, flow.ps)
 
-    loader = DataLoader(data_T; batchsize=batch_size, shuffle=true)
+    loader = DataLoader(data_norm; batchsize=batch_size, shuffle=true)
 
     for epoch in 1:n_epochs
         total_loss = zero(T)

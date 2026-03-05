@@ -151,7 +151,7 @@ function load_trained_flow(path::String; rng::AbstractRNG=Random.default_rng())
         xmin = flat["normalizer_xmin"]
         xmax = flat["normalizer_xmax"]
         T_norm = eltype(xmin)
-        flow.normalizer = MinMaxNormalizer(xmin, xmax, sum(-log.(xmax .- xmin)))
+        flow.normalizer = MinMaxNormalizer{T_norm}(xmin, xmax, T_norm(sum(-log.(xmax .- xmin))))
         delete!(flat, "normalizer_xmin")
         delete!(flat, "normalizer_xmax")
     end

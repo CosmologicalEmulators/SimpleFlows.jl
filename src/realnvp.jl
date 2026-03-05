@@ -21,6 +21,7 @@ Masks alternate between even/odd dimensions.
 """
 @concrete struct RealNVP <: AbstractLuxContainerLayer{(:conditioners,)}
     conditioners
+    mask_list          :: Vector{BitVector}
     dist_dims          :: Int
     n_transforms       :: Int
     hidden_layer_sizes :: Vector{Int}
@@ -28,15 +29,24 @@ end
 
 function RealNVP(; n_transforms::Int, dist_dims::Int,
                    hidden_layer_sizes::Vector{Int}, activation=gelu)
-    mlps = [MLP(dist_dims, hidden_layer_sizes, 2 * dist_dims; activation)
-            for _ in 1:n_transforms]
+    D = dist_dims
+    
+    # Pre-generate masks
+    mask_list = [BitVector(collect(1:D) .% 2 .== i % 2)
+                 for i in 1:n_transforms]
+                 
+    mlps = []
+    for i in 1:n_transforms
+        m = mask_list[i]
+        D_tr = sum(m)
+        push!(mlps, MLP(D, hidden_layer_sizes, 2 * D_tr; activation))
+    end
+    
     keys_ = ntuple(i -> Symbol(:conditioners_, i), n_transforms)
     conditioners = NamedTuple{keys_}(Tuple(mlps))
-    return RealNVP(conditioners, dist_dims, n_transforms, hidden_layer_sizes)
+    return RealNVP(conditioners, mask_list, D, n_transforms, hidden_layer_sizes)
 end
 
 function Lux.initialstates(rng::AbstractRNG, m::RealNVP)
-    mask_list = [Bool.(collect(1:(m.dist_dims)) .% 2 .== i % 2)
-                 for i in 1:(m.n_transforms)]
-    return (; mask_list, conditioners=Lux.initialstates(rng, m.conditioners))
+    return (; mask_list=m.mask_list, conditioners=Lux.initialstates(rng, m.conditioners))
 end

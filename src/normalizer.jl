@@ -21,11 +21,17 @@ end
 
 Fit a `MinMaxNormalizer` from training data (shape `n_dims × n_samples`).
 """
-function MinMaxNormalizer(data::AbstractMatrix{T}) where T
-    xmin = vec(minimum(data; dims=2))
-    xmax = vec(maximum(data; dims=2))
-    log_jac = sum(-log.(xmax .- xmin))
-    return MinMaxNormalizer{T}(xmin, xmax, log_jac)
+function MinMaxNormalizer(x::AbstractMatrix{T}) where {T}
+    x_min = vec(minimum(x, dims=2))
+    x_max = vec(maximum(x, dims=2))
+    
+    if any(x_min .≈ x_max)
+        throw(ArgumentError("Data has zero variance along one or more dimensions. Cannot initialize MinMaxNormalizer."))
+    end
+    
+    # Base volume change: sum(-log(x_max - x_min))
+    logabsdet = sum(-log.(x_max .- x_min))
+    return MinMaxNormalizer{T}(x_min, x_max, logabsdet)
 end
 
 """
@@ -33,19 +39,23 @@ end
 
 Apply the forward transform: `z = (x - x_min) / (x_max - x_min)`.
 """
-normalize(n::MinMaxNormalizer, x::AbstractMatrix) =
-    (x .- n.x_min) ./ (n.x_max .- n.x_min)
+function normalize(n::MinMaxNormalizer, x::AbstractMatrix)
+    return (x .- n.x_min) ./ (n.x_max .- n.x_min)
+end
 
-normalize(n::MinMaxNormalizer, x::AbstractVector) =
-    (x .- n.x_min) ./ (n.x_max .- n.x_min)
+function normalize(n::MinMaxNormalizer, x::AbstractVector)
+    return (x .- n.x_min) ./ (n.x_max .- n.x_min)
+end
 
 """
     denormalize(n::MinMaxNormalizer, z) -> x
 
 Apply the inverse transform: `x = z * (x_max - x_min) + x_min`.
 """
-denormalize(n::MinMaxNormalizer, z::AbstractMatrix) =
-    z .* (n.x_max .- n.x_min) .+ n.x_min
+function denormalize(n::MinMaxNormalizer, z::AbstractMatrix)
+    return z .* (n.x_max .- n.x_min) .+ n.x_min
+end
 
-denormalize(n::MinMaxNormalizer, z::AbstractVector) =
-    z .* (n.x_max .- n.x_min) .+ n.x_min
+function denormalize(n::MinMaxNormalizer, z::AbstractVector)
+    return z .* (n.x_max .- n.x_min) .+ n.x_min
+end

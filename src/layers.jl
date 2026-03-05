@@ -49,19 +49,32 @@ masked dimensions are transformed.
     bijector_constructor
 end
 
-function _apply_mask(bj::MaskedCoupling, x::AbstractArray, transform_fn)
-    x_cond = x .* .!bj.mask            # pass-through dims → conditioner input
-    params  = bj.conditioner(x_cond)
-    y, log_det = transform_fn(params)
-    log_det = log_det .* bj.mask       # only masked dims contribute to log|J|
-    y = ifelse.(bj.mask, y, x)         # pass through unmasked dims unchanged
-    return y, dsum(log_det; dims=Tuple(1:(ndims(x) - 1)))
+function _apply_mask(bj::MaskedCoupling, x::AbstractMatrix, transform_fn)
+    D, N = size(x)
+    m = bj.mask
+    
+    # 1. Conditioning
+    x_cond = x .* .!m
+    params = bj.conditioner(x_cond)
+    
+    # 2. Transform the active dims only
+    x_tr = x[m, :]
+    bj_inner = bj.bijector_constructor(params)
+    y_tr, ld_tr = transform_fn(bj_inner, x_tr)
+    
+    # 3. Reconstruct full y
+    # We use a Zygote-friendly reconstruction
+    tr_idx = cumsum(m)
+    y = vcat([m[i] ? y_tr[tr_idx[i]:tr_idx[i], :] : x[i:i, :] for i in 1:D]...)
+    
+    # sum log-dets over the transformed dims
+    return y, dsum(ld_tr; dims=(1,))
 end
 
 function forward_and_log_det(bj::MaskedCoupling, x::AbstractArray)
-    _apply_mask(bj, x, p -> forward_and_log_det(bj.bijector_constructor(p), x))
+    _apply_mask(bj, x, forward_and_log_det)
 end
 
 function inverse_and_log_det(bj::MaskedCoupling, y::AbstractArray)
-    _apply_mask(bj, y, p -> inverse_and_log_det(bj.bijector_constructor(p), y))
+    _apply_mask(bj, y, inverse_and_log_det)
 end
