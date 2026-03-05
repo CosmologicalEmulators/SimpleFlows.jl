@@ -1,6 +1,6 @@
 [deps]
 Bijectors = "76274a88-744f-5084-9051-94815aaf08c4"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
-FlowMarginals = "d4f3a2b1-9e8c-4d7f-b5a6-2c1e0f9d8e7a"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+SimpleFlows = "7aff1418-a6e2-48c2-ba03-ae8e32e98757"
 Turing = "fce5fe82-541a-59a6-adf8-730c64b5f9a0"
