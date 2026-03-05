@@ -1,6 +1,7 @@
 using Test
 using SimpleFlows
 using Random, Distributions, LinearAlgebra
+using Lux, Zygote, Bijectors, ForwardDiff
 
 rng = Random.MersenneTwister(42)
 
@@ -11,4 +12,5 @@ rng = Random.MersenneTwister(42)
     include("test_normalizer.jl")
     include("test_splines.jl")
     include("test_nsf.jl")
+    include("test_maf.jl")
 end

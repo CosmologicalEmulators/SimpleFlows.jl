@@ -34,8 +34,18 @@ end
 # ── Architecture dict ─────────────────────────────────────────────────────────
 
 function _flow_to_dict(flow::FlowDistribution)
+    arch = if flow.model isa RealNVP
+        "RealNVP"
+    elseif flow.model isa NeuralSplineFlow
+        "NSF"
+    elseif flow.model isa MaskedAutoregressiveFlow
+        "MAF"
+    else
+        error("Unknown architecture type: $(typeof(flow.model))")
+    end
+    
     d = Dict(
-        "architecture"      => (flow.model isa RealNVP ? "RealNVP" : "NSF"),
+        "architecture"      => arch,
         "n_transforms"      => flow.model.n_transforms,
         "dist_dims"         => flow.n_dims,
         "hidden_layer_sizes" => flow.hidden_layer_sizes,
@@ -50,7 +60,15 @@ end
 
 function _build_flow_from_dict(d::AbstractDict, ::Type{T}=Float32, rng::AbstractRNG=Random.default_rng()) where {T<:Real}
     arch = d["architecture"]
-    arch_sym = (arch == "RealNVP" ? :RealNVP : :NSF)
+    arch_sym = if arch == "RealNVP"
+        :RealNVP
+    elseif arch == "NSF"
+        :NSF
+    elseif arch == "MAF"
+        :MAF
+    else
+        error("Unknown architecture: $arch")
+    end
     
     # Support both new (hidden_layer_sizes) and legacy (hidden_dims + n_layers) formats
     hidden_layer_sizes = if haskey(d, "hidden_layer_sizes")

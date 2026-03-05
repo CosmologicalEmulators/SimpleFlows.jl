@@ -45,8 +45,10 @@ function FlowDistribution(::Type{T}=Float32;
         RealNVP(; n_transforms, dist_dims, hidden_layer_sizes, activation)
     elseif architecture == :NSF
         NeuralSplineFlow(; n_transforms, dist_dims, hidden_layer_sizes, K, tail_bound, activation)
+    elseif architecture == :MAF
+        MaskedAutoregressiveFlow(; n_transforms, dist_dims, hidden_layer_sizes, activation)
     else
-        error("Unknown architecture: $architecture. Supported: :RealNVP, :NSF")
+        error("Unknown architecture: $architecture. Supported: :RealNVP, :NSF, :MAF")
     end
     
     ps, st = Lux.setup(rng, model)

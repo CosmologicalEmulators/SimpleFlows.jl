@@ -150,51 +150,6 @@ function Lux.initialstates(rng::AbstractRNG, m::NeuralSplineFlow)
     return (; mask_list, conditioners=Lux.initialstates(rng, m.conditioners))
 end
 
-# Generic log_prob and draw_samples
-function log_prob(model::Union{RealNVP, NeuralSplineFlow}, ps, st, x::AbstractMatrix)
-    lp = nothing
-    for i in model.n_transforms:-1:1
-        k = keys(model.conditioners)[i]
-        mask = st.mask_list[i]
-        cond_fn = let m = model.conditioners[k], p = ps.conditioners[k],
-                      s = st.conditioners[k]
-            x_cond -> Lux.apply(m, x_cond, p, s)[1]
-        end
-        
-        bj = if model isa RealNVP
-            MaskedCoupling(mask, cond_fn, AffineBijector)
-        else
-            MaskedCoupling(mask, cond_fn, p -> NSFCouplingBijector_from_flat(p, mask, model.K, model.tail_bound))
-        end
-        
-        x, ld = inverse_and_log_det(bj, x)
-        lp = isnothing(lp) ? ld : lp .+ ld
-    end
-    base_lp = dsum(gaussian_logpdf.(x); dims=(1,))
-    return isnothing(lp) ? base_lp : lp .+ base_lp
-end
-
-function draw_samples(rng::AbstractRNG, ::Type{T}, model::Union{RealNVP, NeuralSplineFlow},
-                      ps, st, n_samples::Int) where T
-    x = randn(rng, T, model.dist_dims, n_samples)
-    for i in 1:(model.n_transforms)
-        k = keys(model.conditioners)[i]
-        mask = st.mask_list[i]
-        cond_fn = let m = model.conditioners[k], p = ps.conditioners[k],
-                      s = st.conditioners[k]
-            x_cond -> Lux.apply(m, x_cond, p, s)[1]
-        end
-        
-        bj = if model isa RealNVP
-            MaskedCoupling(mask, cond_fn, AffineBijector)
-        else
-            MaskedCoupling(mask, cond_fn, p -> NSFCouplingBijector_from_flat(p, mask, model.K, model.tail_bound))
-        end
-        
-        x, _ = forward_and_log_det(bj, x)
-    end
-    return x
-end
 
 # Helper to build the bijector from flat parameters
 struct NSFSplineConstructor
