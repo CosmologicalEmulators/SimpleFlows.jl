@@ -101,10 +101,12 @@ end
 # therefore no parameter transformation is required for HMC/NUTS.
 Bijectors.bijector(::FlowDistribution) = identity
 
-# Explicitly implement the VectorBijectors interface
-Bijectors.VectorBijectors.vec_length(d::FlowDistribution) = d.n_dims
-Bijectors.VectorBijectors.linked_vec_length(d::FlowDistribution) = d.n_dims
-Bijectors.VectorBijectors.to_vec(d::FlowDistribution) = Base.identity
-Bijectors.VectorBijectors.from_vec(d::FlowDistribution) = Base.identity
-Bijectors.VectorBijectors.to_linked_vec(d::FlowDistribution) = Base.identity
-Bijectors.VectorBijectors.from_linked_vec(d::FlowDistribution) = Base.identity
+if isdefined(Bijectors, :VectorBijectors)
+    # Explicitly implement the VectorBijectors interface
+    Bijectors.VectorBijectors.vec_length(d::FlowDistribution) = d.n_dims
+    Bijectors.VectorBijectors.linked_vec_length(d::FlowDistribution) = d.n_dims
+    Bijectors.VectorBijectors.to_vec(d::FlowDistribution) = Base.identity
+    Bijectors.VectorBijectors.from_vec(d::FlowDistribution) = Base.identity
+    Bijectors.VectorBijectors.to_linked_vec(d::FlowDistribution) = Base.identity
+    Bijectors.VectorBijectors.from_linked_vec(d::FlowDistribution) = Base.identity
+end
