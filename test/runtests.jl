@@ -14,4 +14,5 @@ rng = Random.MersenneTwister(42)
     include("test_splines.jl")
     include("test_nsf.jl")
     include("test_maf.jl")
+    include("test_ad.jl")
 end
