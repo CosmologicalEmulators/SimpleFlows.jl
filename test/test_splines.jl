@@ -7,7 +7,7 @@ using LinearAlgebra
 
 @testset "Rational Quadratic Splines" begin
     # 1. Load reference data (F64)
-    data = npzread("/tmp/nsf_test_data_f64.npz")
+    data = npzread(joinpath(@__DIR__, "data", "nsf_test_data_f64.npz"))
     
     for T in [Float32, Float64]
         @testset "Precision: $T" begin
