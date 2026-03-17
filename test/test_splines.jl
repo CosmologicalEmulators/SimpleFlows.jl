@@ -1,23 +1,29 @@
 using SimpleFlows
 using Test
-using NPZ
+using JSON
 using ForwardDiff
 using Zygote
 using LinearAlgebra
 
 @testset "Rational Quadratic Splines" begin
-    # 1. Load reference data (F64)
-    data = npzread(joinpath(@__DIR__, "data", "nsf_test_data_f64.npz"))
+    # 1. Load reference data
+    data = JSON.parsefile(joinpath(@__DIR__, "data", "nsf_test_data.json"))
+    
+    # Helper to reconstruct array from JSON dict
+    function get_array(T, dict, key)
+        d = dict[key]
+        reshape(T.(d["data"]), d["shape"]...)
+    end
     
     for T in [Float32, Float64]
         @testset "Precision: $T" begin
-            inputs = T.(data["inputs"])
-            unnormalized_widths = T.(data["unnormalized_widths"])
-            unnormalized_heights = T.(data["unnormalized_heights"])
-            unnormalized_derivatives = T.(data["unnormalized_derivatives"])
+            inputs = get_array(T, data, "inputs")
+            unnormalized_widths = get_array(T, data, "unnormalized_widths")
+            unnormalized_heights = get_array(T, data, "unnormalized_heights")
+            unnormalized_derivatives = get_array(T, data, "unnormalized_derivatives")
             
-            ref_outputs = T.(data["outputs"])
-            ref_logabsdet = T.(data["logabsdet"])
+            ref_outputs = get_array(T, data, "outputs")
+            ref_logabsdet = get_array(T, data, "logabsdet")
             
             D, N = size(inputs)
             
