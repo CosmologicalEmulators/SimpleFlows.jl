@@ -29,9 +29,9 @@ function forward_and_log_det(b::NSFSplineBijector, x::AbstractArray)
     params = reshape(params, D_tr, 3*K - 1, N)
     
     # Partition params
-    w_unnorm = params[:, 1:K, :]
-    h_unnorm = params[:, K+1:2*K, :]
-    dv_unnorm = params[:, 2*K+1:end, :]
+    w_unnorm = @view params[:, 1:K, :]
+    h_unnorm = @view params[:, K+1:2*K, :]
+    dv_unnorm = @view params[:, 2*K+1:end, :]
     
     # Flatten everything to call the spline function
     x_flat = vec(x)
@@ -57,9 +57,9 @@ function inverse_and_log_det(b::NSFSplineBijector, y::AbstractArray)
     params = b.params
     
     params = reshape(params, D_tr, 3*K - 1, N)
-    w_unnorm = params[:, 1:K, :]
-    h_unnorm = params[:, K+1:2*K, :]
-    dv_unnorm = params[:, 2*K+1:end, :]
+    w_unnorm = @view params[:, 1:K, :]
+    h_unnorm = @view params[:, K+1:2*K, :]
+    dv_unnorm = @view params[:, 2*K+1:end, :]
     
     y_flat = vec(y)
     w_flat = reshape(permutedims(w_unnorm, (1, 3, 2)), D_tr * N, K)

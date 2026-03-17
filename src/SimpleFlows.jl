@@ -5,6 +5,7 @@ using Distributions
 using Bijectors
 using JSON, NPZ
 using Optimisers, Zygote
+using ChainRulesCore
 
 include("layers.jl")
 include("realnvp.jl")

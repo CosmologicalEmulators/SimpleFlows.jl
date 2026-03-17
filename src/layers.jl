@@ -22,7 +22,7 @@ end
 function AffineBijector(params::AbstractArray)
     n = size(params, 1) ÷ 2
     idx = ntuple(Returns(Colon()), ndims(params) - 1)
-    return AffineBijector(params[1:n, idx...], params[(n + 1):end, idx...])
+    return @views AffineBijector(params[1:n, idx...], params[(n + 1):end, idx...])
 end
 
 function forward_and_log_det(b::AffineBijector, x::AbstractArray)
@@ -63,12 +63,29 @@ function _apply_mask(bj::MaskedCoupling, x::AbstractMatrix, transform_fn)
     y_tr, ld_tr = transform_fn(bj_inner, x_tr)
     
     # 3. Reconstruct full y
-    # We use a Zygote-friendly reconstruction
-    tr_idx = cumsum(m)
-    y = vcat([m[i] ? y_tr[tr_idx[i]:tr_idx[i], :] : x[i:i, :] for i in 1:D]...)
+    y = _reconstruct(m, x, y_tr)
     
     # sum log-dets over the transformed dims
     return y, dsum(ld_tr; dims=(1,))
+end
+
+function _reconstruct(m::AbstractArray{Bool}, x::AbstractMatrix, y_tr::AbstractMatrix)
+    y = similar(x)
+    y[.!m, :] .= x[.!m, :]
+    y[m, :] .= y_tr
+    return y
+end
+
+function ChainRulesCore.rrule(::typeof(_reconstruct), m::AbstractArray{Bool}, x::AbstractMatrix, y_tr::AbstractMatrix)
+    y = _reconstruct(m, x, y_tr)
+    function _reconstruct_pullback(Δy)
+        Δx = similar(x)
+        Δx[.!m, :] .= Δy[.!m, :]
+        Δx[m, :] .= 0
+        Δy_tr = Δy[m, :]
+        return ChainRulesCore.NoTangent(), ChainRulesCore.NoTangent(), Δx, Δy_tr
+    end
+    return y, _reconstruct_pullback
 end
 
 function forward_and_log_det(bj::MaskedCoupling, x::AbstractArray)
