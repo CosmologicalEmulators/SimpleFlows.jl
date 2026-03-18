@@ -16,17 +16,24 @@ negative log-likelihood on the normalised data.
 """
 function train_flow!(flow::FlowDistribution{T}, data::AbstractMatrix;
                      n_epochs::Int=1000,
-                     lr::Real=T(1f-3),
+                     lr::Union{Nothing, Real}=nothing,
                      batch_size::Int=256,
-                     verbose::Bool=true) where {T}
-    # Always fit and apply a min-max normalizer
+                     verbose::Bool=true,
+                     opt=nothing) where {T}
+    # 5. Fit & Attach Normalizer (on the first batch or full data)
+    # We fit it on the full training data for simplicity
     flow.normalizer = MinMaxNormalizer(T.(data))
-    data_T = normalize(flow.normalizer, T.(data))
+    data_norm = SimpleFlows.normalize(flow.normalizer, data)
 
-    opt       = Optimisers.OptimiserChain(Optimisers.ClipGrad(T(1)), Optimisers.Adam(T(lr)))
-    opt_state = Optimisers.setup(opt, flow.ps)
+    actual_opt = if isnothing(opt)
+        actual_lr = isnothing(lr) ? T(1f-3) : T(lr)
+        Optimisers.OptimiserChain(Optimisers.ClipGrad(T(1)), Optimisers.Adam(actual_lr))
+    else
+        opt
+    end
+    opt_state = Optimisers.setup(actual_opt, flow.ps)
 
-    loader = DataLoader(data_T; batchsize=batch_size, shuffle=true)
+    loader = DataLoader(data_norm; batchsize=batch_size, shuffle=true)
 
     for epoch in 1:n_epochs
         total_loss = zero(T)

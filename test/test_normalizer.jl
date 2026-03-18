@@ -1,4 +1,23 @@
 @testset "MinMaxNormalizer" begin
+    # 1. Normal functioning data
+    x = Float32[1 2 3; 4 5 6]
+    norm = MinMaxNormalizer(x)
+    
+    @test norm.x_min == Float32[1, 4]
+    @test norm.x_max == Float32[3, 6]
+    
+    x_norm = SimpleFlows.normalize(norm, x)
+    @test size(x_norm) == size(x)
+    @test all(x_norm .>= 0)
+    @test all(x_norm .<= 1)
+    
+    x_unnorm = SimpleFlows.denormalize(norm, x_norm)
+    @test x_unnorm ≈ x
+
+    # 2. Zero variance edge case
+    x_zero_var = Float32[1 1 1; 4 5 6]
+    @test_throws ArgumentError MinMaxNormalizer(x_zero_var)
+
     rng  = Random.MersenneTwister(7)
     dims = 4
 

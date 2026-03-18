@@ -2,7 +2,7 @@
 
 julia_version = "1.12.1"
 manifest_format = "2.0"
-project_hash = "64c6eed7b4f2bf47e0f4350e25ac6a3f80fb5a0d"
+project_hash = "3d2728b3089e56da155cbe07b6f794382965b85e"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "f7304359109c768cf32dc5fa2d371565bb63b68a"
@@ -1753,10 +1753,8 @@ uuid = "605ecd9f-84a6-4c9e-81e2-4798472b76a3"
 version = "0.1.0"
 
 [[deps.SimpleFlows]]
-deps = ["Bijectors", "ConcreteStructs", "Distributions", "JSON", "LinearAlgebra", "Lux", "MLUtils", "NPZ", "Optimisers", "Random", "Statistics", "Test", "Zygote"]
-git-tree-sha1 = "9ee8f18c24029fe3ad3362abade4e005e283e4d1"
-repo-rev = "main"
-repo-url = "https://github.com/CosmologicalEmulators/SimpleFlows.jl"
+deps = ["Bijectors", "ChainRulesCore", "ConcreteStructs", "Distributions", "ForwardDiff", "JSON", "LinearAlgebra", "Lux", "MLUtils", "NNlib", "NPZ", "Optimisers", "Random", "Statistics", "Test", "Zygote"]
+path = ".."
 uuid = "7aff1418-a6e2-48c2-ba03-ae8e32e98757"
 version = "0.1.0"
 

@@ -1,12 +1,18 @@
 using Test
 using SimpleFlows
 using Random, Distributions, LinearAlgebra
+using Lux, Zygote, Bijectors, ForwardDiff, JSON
 
 rng = Random.MersenneTwister(42)
 
 @testset "SimpleFlows.jl" begin
     include("test_layers.jl")
     include("test_realnvp.jl")
+    include("test_training.jl")
     include("test_io.jl")
     include("test_normalizer.jl")
+    include("test_splines.jl")
+    include("test_nsf.jl")
+    include("test_maf.jl")
+    include("test_ad.jl")
 end

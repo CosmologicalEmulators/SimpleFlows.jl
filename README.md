@@ -6,7 +6,10 @@ distributions inside [`Turing.jl`](https://turinglang.org/) probabilistic progra
 
 ## Features
 
-- **RealNVP** (Real-valued Non-Volume Preserving) architecture with affine coupling layers
+- **Architectures**:
+  - **RealNVP** (Real-valued Non-Volume Preserving)
+  - **NSF** (Neural Spline Flow with Rational Quadratic Splines)
+  - **MAF** (Masked Autoregressive Flow with MADE)
 - Full `Distributions.jl` interface: `logpdf`, `rand`, `length`
 - `Bijectors.jl` compatible → plug directly into Turing models as a prior
 - Training via `Optimisers.Adam` + `Zygote.jl` autodiff, mini-batched with `MLUtils`
@@ -15,10 +18,10 @@ distributions inside [`Turing.jl`](https://turinglang.org/) probabilistic progra
 ## Quick Start
 
 ```julia
-using SimpleFlows, Distributions
+using SimpleFlows, Distributions, LinearAlgebra
 
-# 1. Build a 4-dim flow
-flow = FlowDistribution(; n_transforms=6, dist_dims=4, hidden_dims=64, n_layers=3)
+# 1. Build a 4-dim flow (options: :RealNVP, :NSF, :MAF)
+flow = FlowDistribution(Float32; architecture=:RealNVP, n_transforms=6, dist_dims=4, hidden_layer_sizes=[64, 64, 64])
 
 # 2. Sample training data from your target distribution
 data = Float32.(rand(MvNormal(zeros(4), I), 10_000))
@@ -60,8 +63,8 @@ my_flow/
 | Architecture | Status  |
 |---|---|
 | RealNVP      | ✅ Done |
-| MAF          | 📋 Planned |
-| NSF          | 📋 Planned |
+| MAF          | ✅ Done |
+| NSF          | ✅ Done |
 
 ## Running Tests
 
@@ -69,8 +72,10 @@ my_flow/
 julia --project=. -e "using Pkg; Pkg.test()"
 ```
 
-## Running the Example
+## Running the Examples
 
 ```bash
 julia --project=. examples/train_multinormal.jl
+julia --project=. examples/train_multinormal_nsf.jl
+julia --project=. examples/train_multinormal_maf.jl
 ```
