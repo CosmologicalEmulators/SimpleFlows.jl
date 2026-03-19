@@ -43,6 +43,7 @@ function train_flow!(flow::FlowDistribution{T}, data::AbstractMatrix;
         DataLoader(data_norm; batchsize=batch_size, shuffle=true, partial=false)
     )
 
+    running_loss = zero(T)
     for (iter, batch) in enumerate(loader)
         # Compute gradient and update parameters
         loss, (dps,) = Zygote.withgradient(flow.ps) do ps
@@ -53,10 +54,15 @@ function train_flow!(flow::FlowDistribution{T}, data::AbstractMatrix;
         opt_state, new_ps = Optimisers.update!(opt_state, flow.ps, dps)
         flow.ps = new_ps
 
-        # Periodic logging
-        if verbose && n_batches_per_epoch > 0 && iter % (100 * n_batches_per_epoch) == 0
+        running_loss += loss
+
+        # Periodic logging at epoch boundaries
+        if n_batches_per_epoch > 0 && iter % n_batches_per_epoch == 0
             epoch = iter ÷ n_batches_per_epoch
-            @info "Epoch $(lpad(epoch, 5)) | NLL: $(round(loss; digits=4))"
+            if verbose && epoch % 100 == 0
+                @info "Epoch $(lpad(epoch, 5)) | mean NLL: $(round(running_loss / n_batches_per_epoch; digits=4))"
+            end
+            running_loss = zero(T)
         end
 
         iter ≥ maxiters && break
