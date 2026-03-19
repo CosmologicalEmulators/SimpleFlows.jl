@@ -1,3 +1,5 @@
+# MODIFIED: training.jl — flattened training loop using Iterators.cycle
+
 """
     train_flow!(flow, data; n_epochs, lr, batch_size, verbose) -> FlowDistribution
 
@@ -20,8 +22,7 @@ function train_flow!(flow::FlowDistribution{T}, data::AbstractMatrix;
                      batch_size::Int=256,
                      verbose::Bool=true,
                      opt=nothing) where {T}
-    # 5. Fit & Attach Normalizer (on the first batch or full data)
-    # We fit it on the full training data for simplicity
+    # Fit & Attach Normalizer
     flow.normalizer = MinMaxNormalizer(T.(data))
     data_norm = SimpleFlows.normalize(flow.normalizer, data)
 
@@ -33,28 +34,32 @@ function train_flow!(flow::FlowDistribution{T}, data::AbstractMatrix;
     end
     opt_state = Optimisers.setup(actual_opt, flow.ps)
 
-    loader = DataLoader(data_norm; batchsize=batch_size, shuffle=true)
+    # Flatten the loop: use total iterations instead of nested epoch/batch loops.
+    # partial=false avoids recompilation due to changing batch shapes.
+    n_batches_per_epoch = size(data_norm, 2) ÷ batch_size
+    maxiters = n_epochs * n_batches_per_epoch
+    
+    loader = Iterators.cycle(
+        DataLoader(data_norm; batchsize=batch_size, shuffle=true, partial=false)
+    )
 
-    for epoch in 1:n_epochs
-        total_loss = zero(T)
-        n_batches  = 0
-
-        for batch in loader
-            loss, (dps,) = Zygote.withgradient(flow.ps) do ps
-                lp = log_prob(flow.model, ps, flow.st, batch)
-                -mean(lp)
-            end
-
-            opt_state, new_ps = Optimisers.update!(opt_state, flow.ps, dps)
-            flow.ps = new_ps
-
-            total_loss += loss
-            n_batches  += 1
+    for (iter, batch) in enumerate(loader)
+        # Compute gradient and update parameters
+        loss, (dps,) = Zygote.withgradient(flow.ps) do ps
+            lp = log_prob(flow.model, ps, flow.st, batch)
+            -Statistics.mean(lp)
         end
 
-        if verbose && epoch % 100 == 0
-            @info "Epoch $(lpad(epoch, 5)) | mean NLL: $(round(total_loss / n_batches; digits=4))"
+        opt_state, new_ps = Optimisers.update!(opt_state, flow.ps, dps)
+        flow.ps = new_ps
+
+        # Periodic logging
+        if verbose && n_batches_per_epoch > 0 && iter % (100 * n_batches_per_epoch) == 0
+            epoch = iter ÷ n_batches_per_epoch
+            @info "Epoch $(lpad(epoch, 5)) | NLL: $(round(loss; digits=4))"
         end
+
+        iter ≥ maxiters && break
     end
 
     return flow

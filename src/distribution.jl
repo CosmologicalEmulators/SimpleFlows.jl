@@ -1,3 +1,5 @@
+# MODIFIED: distribution.jl — type-stable FlowDistribution struct and constructor
+
 """
     FlowDistribution(model, ps, st, n_dims, hidden_dims, n_layers, normalizer)
 
@@ -5,16 +7,16 @@ A trained normalizing flow wrapped as a `Distributions.jl`
 `ContinuousMultivariateDistribution`, usable directly in `Turing.jl` models.
 
 # Fields
-- `model`: the `RealNVP` Lux model
-- `ps`: trained parameters (NamedTuple)
+- `model`: the `RealNVP`, `NeuralSplineFlow`, or `MaskedAutoregressiveFlow` Lux model
+- `ps`: trained parameters (NamedTuple or ComponentArray)
 - `st`: Lux state (NamedTuple)
-- `n_dims`, `hidden_dims`, `n_layers`: architecture metadata for serialization
+- `n_dims`, `hidden_layer_sizes`: architecture metadata for serialization
 - `normalizer`: fitted `MinMaxNormalizer` (always present after training)
 """
-mutable struct FlowDistribution{T<:Real, M<:AbstractLuxLayer} <: ContinuousMultivariateDistribution
+mutable struct FlowDistribution{T<:Real, M<:AbstractLuxLayer, P, S} <: ContinuousMultivariateDistribution
     model              :: M
-    ps
-    st
+    ps                 :: P
+    st                 :: S
     n_dims             :: Int
     hidden_layer_sizes :: Vector{Int}
     normalizer         :: Union{Nothing, MinMaxNormalizer{T}}
@@ -26,7 +28,7 @@ end
                        activation=gelu, rng=Random.default_rng(), K=8, tail_bound=3.0)
 
 Construct and randomly initialise a `FlowDistribution`.
-`architecture` can be `:RealNVP` or `:NSF`.
+`architecture` can be `:RealNVP`, `:NSF`, or `:MAF`.
 """
 function FlowDistribution(::Type{T}=Float32;
                             architecture=:RealNVP,
@@ -53,7 +55,10 @@ function FlowDistribution(::Type{T}=Float32;
     
     ps, st = Lux.setup(rng, model)
     ps = Lux.fmap(x -> x isa AbstractArray ? T.(x) : x, ps)
-    return FlowDistribution{T, typeof(model)}(model, ps, st, dist_dims, hidden_layer_sizes, nothing)
+    
+    return FlowDistribution{T, typeof(model), typeof(ps), typeof(st)}(
+        model, ps, st, dist_dims, hidden_layer_sizes, nothing
+    )
 end
 
 # ── Distributions.jl interface ────────────────────────────────────────────────
@@ -69,6 +74,10 @@ function _apply_normalizer(d::FlowDistribution{T}, x::AbstractVector{<:Real}) wh
     isnothing(d.normalizer) && return x, zero(T)
     return SimpleFlows.normalize(d.normalizer, x), d.normalizer.log_jac
 end
+
+# In Julia, if FlowDistribution is defined with 4 params, FlowDistribution{T} 
+# is equivalent to FlowDistribution{T, M, P, S} where {M, P, S}.
+# This allows the methods below to work without explicitly naming all parameters.
 
 function Distributions.logpdf(d::FlowDistribution, x::AbstractVector{<:Real})
     x_norm, log_jac = _apply_normalizer(d, x)

@@ -1,4 +1,4 @@
-# src/generic_ops.jl
+# MODIFIED: generic_ops.jl — type-stable log_prob and fused gaussian_logpdf_sum
 
 """
     log_prob(model, ps, st, x) -> Vector
@@ -8,39 +8,61 @@ Pure functional — no mutations, safe for Zygote.
 Supports RealNVP, NeuralSplineFlow, and MaskedAutoregressiveFlow.
 """
 function log_prob(model::Union{RealNVP, NeuralSplineFlow, MaskedAutoregressiveFlow}, ps, st, x::AbstractMatrix)
-    lp = nothing
-    for i in model.n_transforms:-1:1
-        ks = model isa MaskedAutoregressiveFlow ? keys(model.mades) : keys(model.conditioners)
-        k = ks[i]
-        
-        if model isa MaskedAutoregressiveFlow
-            bj = MAFBijector(model.mades[k], ps.mades[k], st.mades[k])
-            # Inverse is x -> u, which is what we need for log_prob
-            x, ld = Bijectors.with_logabsdet_jacobian(bj, x)
-        else
-            mask = st.mask_list[i]
-            cond_fn = let m = model.conditioners[k], p = ps.conditioners[k],
-                          s = st.conditioners[k]
-                x_cond -> Lux.apply(m, x_cond, p, s)[1]
-            end
-            
-            bj = if model isa RealNVP
-                MaskedCoupling(mask, cond_fn, AffineBijector)
-            else
-                MaskedCoupling(mask, cond_fn, p -> NSFCouplingBijector_from_flat(p, model.K, model.tail_bound))
-            end
-            x, ld = inverse_and_log_det(bj, x)
-        end
-        
-        lp = isnothing(lp) ? ld : lp .+ ld
-        
-        # Apply ReversePermute between MAF blocks
-        if model isa MaskedAutoregressiveFlow && i > 1
-             x = x[end:-1:1, :]
-        end
+    n = model.n_transforms
+    
+    # Base case for zero transforms (though unlikely in practice)
+    if n == 0
+        return gaussian_logpdf_sum(x)
     end
-    base_lp = dsum(gaussian_logpdf.(x); dims=(1,))
-    return isnothing(lp) ? base_lp : lp .+ base_lp
+
+    # First iteration to infer correct type and size of the log-determinant (lp)
+    x, lp = _single_inverse(model, ps, st, x, n)
+    
+    # Loop over remaining transforms
+    for i in (n - 1):-1:1
+        x, ld = _single_inverse(model, ps, st, x, i)
+        lp = lp .+ ld
+    end
+    
+    # Gaussian base log-probability (fused reduction)
+    base_lp = gaussian_logpdf_sum(x)
+    return lp .+ base_lp
+end
+
+"""
+    _single_inverse(model, ps, st, x, i) -> (x_next, log_det)
+
+Helper to apply the i-th inverse transform of the model.
+"""
+function _single_inverse(model::Union{RealNVP, NeuralSplineFlow, MaskedAutoregressiveFlow}, ps, st, x::AbstractMatrix, i::Int)
+    ks = model isa MaskedAutoregressiveFlow ? keys(model.mades) : keys(model.conditioners)
+    k = ks[i]
+    
+    if model isa MaskedAutoregressiveFlow
+        bj = MAFBijector(model.mades[k], ps.mades[k], st.mades[k])
+        # Density estimation: u = (x - m) * exp(-alpha). Fast O(1).
+        x_next, ld = Bijectors.with_logabsdet_jacobian(bj, x)
+    else
+        mask = st.mask_list[i]
+        cond_fn = let m = model.conditioners[k], p = ps.conditioners[k],
+                      s = st.conditioners[k]
+            x_cond -> Lux.apply(m, x_cond, p, s)[1]
+        end
+        
+        bj = if model isa RealNVP
+            MaskedCoupling(mask, cond_fn, AffineBijector)
+        else
+            MaskedCoupling(mask, cond_fn, p -> NSFCouplingBijector_from_flat(p, model.K, model.tail_bound))
+        end
+        x_next, ld = inverse_and_log_det(bj, x)
+    end
+    
+    # Apply ReversePermute between MAF blocks (standard practice for MAF)
+    if model isa MaskedAutoregressiveFlow && i > 1
+         x_next = x_next[end:-1:1, :]
+    end
+    
+    return x_next, ld
 end
 
 """

@@ -1,10 +1,15 @@
+# MODIFIED: layers.jl — fused gaussian_logpdf_sum and @views for efficiency
+
 # ── Utility ──────────────────────────────────────────────────────────────────
 
 """Sum and drop the given dimensions (batch-safe reduction)."""
 dsum(x; dims) = dropdims(sum(x; dims=dims); dims=dims)
 
-"""Elementwise log-pdf of a standard normal."""
-gaussian_logpdf(x::Real) = -oftype(x, 0.5) * (log(oftype(x, 2π)) + x^2)
+"""Single fused reduction that avoids intermediate matrix allocation."""
+function gaussian_logpdf_sum(x::AbstractMatrix{T}) where T
+    c = T(-0.5f0 * log(2π))
+    return dropdims(sum(muladd.(x, T(-0.5) .* x, c); dims=1); dims=1)
+end
 
 # ── AffineBijector ────────────────────────────────────────────────────────────
 
@@ -50,15 +55,15 @@ masked dimensions are transformed.
 end
 
 function _apply_mask(bj::MaskedCoupling, x::AbstractMatrix, transform_fn)
-    D, N = size(x)
     m = bj.mask
     
     # 1. Conditioning
+    # x_cond must be full D-dimensional for the MLP conditioner
     x_cond = x .* .!m
     params = bj.conditioner(x_cond)
     
     # 2. Transform the active dims only
-    x_tr = x[m, :]
+    @views x_tr = x[m, :]
     bj_inner = bj.bijector_constructor(params)
     y_tr, ld_tr = transform_fn(bj_inner, x_tr)
     
@@ -71,7 +76,7 @@ end
 
 function _reconstruct(m::AbstractArray{Bool}, x::AbstractMatrix, y_tr::AbstractMatrix)
     y = similar(x)
-    y[.!m, :] .= x[.!m, :]
+    @views y[.!m, :] .= x[.!m, :]
     y[m, :] .= y_tr
     return y
 end
@@ -80,9 +85,9 @@ function ChainRulesCore.rrule(::typeof(_reconstruct), m::AbstractArray{Bool}, x:
     y = _reconstruct(m, x, y_tr)
     function _reconstruct_pullback(Δy)
         Δx = similar(x)
-        Δx[.!m, :] .= Δy[.!m, :]
+        @views Δx[.!m, :] .= Δy[.!m, :]
         Δx[m, :] .= 0
-        Δy_tr = Δy[m, :]
+        @views Δy_tr = Δy[m, :]
         return ChainRulesCore.NoTangent(), ChainRulesCore.NoTangent(), Δx, Δy_tr
     end
     return y, _reconstruct_pullback
