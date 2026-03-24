@@ -70,3 +70,12 @@ function train_flow!(flow::FlowDistribution{T}, data::AbstractMatrix;
 
     return flow
 end
+
+"""
+    train_flow_reactant!(flow, data; kwargs...) -> FlowDistribution
+
+Train a flow using the Reactant (XLA) backend for high-performance execution.
+Requires `using Reactant` and `using Enzyme` to be loaded in your environment.
+"""
+function train_flow_reactant! end
+

@@ -21,7 +21,7 @@ include("io.jl")
 
 export RealNVP, NeuralSplineFlow, MaskedAutoregressiveFlow, FlowDistribution
 export MinMaxNormalizer
-export train_flow!, save_trained_flow, load_trained_flow, normalize, denormalize
+export train_flow!, train_flow_reactant!, save_trained_flow, load_trained_flow, normalize, denormalize
 export unconstrained_rational_quadratic_spline
 
 end

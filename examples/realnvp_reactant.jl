@@ -54,89 +54,49 @@ function main()
     # Wrap in FlowDistribution
     flow_cpu = FlowDistribution(model, ps_cpu, st_cpu, D, [hidden_dims, hidden_dims], MinMaxNormalizer(x_train_cpu))
 
-    # Train for 100 epochs (100 * 10 = 1000 steps)
-    t_start_cpu = time()
-    train_flow!(flow_cpu, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
-    t_end_cpu = time()
+    # Train for 10 epochs (10 * 10 = 100 steps)
+    #t_start_cpu = time()
+    #train_flow!(flow_cpu, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
+    #t_end_cpu = time()
 
-    t_start_cpu = time()
-    train_flow!(flow_cpu, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
-    t_end_cpu = time()
+    #t_start_cpu = time()
+    #train_flow!(flow_cpu, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
+    #t_end_cpu = time()
 
-    @time train_flow!(flow_cpu, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
+    #@time train_flow!(flow_cpu, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
 
-    total_samples_cpu = n_train_samples * 100
-    throughput_cpu = total_samples_cpu / (t_end_cpu - t_start_cpu)
-    @printf("Original train_flow! completed 1000 steps in %.2fs | Throughput: %.2f samples/s\n", (t_end_cpu - t_start_cpu), throughput_cpu)
+    #total_samples_cpu = n_train_samples * 10
+    #throughput_cpu = total_samples_cpu / (t_end_cpu - t_start_cpu)
+    #@printf("Original train_flow! completed 100 steps in %.2fs | Throughput: %.2f samples/s\n", (t_end_cpu - t_start_cpu), throughput_cpu)
 
-    println("\n--- Performance Comparison: Reactant (Enzyme on XLA) ---")
+    #println("\n--- Performance Comparison: Reactant (Enzyme on XLA) ---")
 
-    # Move model parameters and state to the reactant device
-    ps, st = Lux.setup(rng, model) |> xdev
+    # Instantiate a fresh FlowDistribution for the Reactant run
+    ps_xla, st_xla = Lux.setup(rng, model)
+    ps_xla = Lux.fmap(x -> x isa AbstractArray ? Float32.(x) : x, ps_xla)
+    flow_xla = FlowDistribution(model, ps_xla, st_xla, D, [hidden_dims, hidden_dims], MinMaxNormalizer(x_train_cpu))
 
+    println("Starting train_flow_reactant! (first step includes XLA compilation time)...")
+    t_start_xla = time()
+    train_flow_reactant!(flow_xla, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=true)
+    t_end_xla = time()
 
-    # Use Float32 for all optimizer hyperparameters to avoid TracedRNumber type conversion issues
-    opt = Adam(1f-3, (0.9f0, 0.999f0), 1f-8)
+    # Run a second time to see the pure execution speed without compilation overhead
+    println("\nRunning train_flow_reactant! again (pure XLA execution speed)...")
+    t_start_xla_pure = time()
+    train_flow_reactant!(flow_xla, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
+    t_end_xla_pure = time()
+    @time train_flow_reactant!(flow_xla, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
 
-    # Create the training state
-    train_state = Lux.Training.TrainState(model, ps, st, opt)
+    throughput_xla_pure = (n_train_samples * 100) / (t_end_xla_pure - t_start_xla_pure)
+    @printf("Reactant train_flow_reactant! completed 1000 steps in %.2fs | Throughput: %.2f samples/s\n", (t_end_xla_pure - t_start_xla_pure), throughput_xla_pure)
 
-    @printf("Total Trainable Parameters: %d\n", Lux.parameterlength(ps))
-
-    println("\n--- Starting Training Loop (100 steps for brevity) ---")
-
-    total_samples = 0
-    start_time = time()
-    batchsize = 512
-    maxiters = 10000
-
-    for iter in 1:maxiters
-        # Generate batch and move to device
-        x_batch = generate_mixture_data(batchsize, rng) |> xdev
-        total_samples += size(x_batch, ndims(x_batch))
-
-        # Use Lux.Training's single_train_step! which handles compilation and optimizer updates gracefully
-        (_, loss, _, train_state) = Lux.Training.single_train_step!(
-            AutoEnzyme(), loss_function, x_batch, train_state; return_gradients=Val(false)
-        )
-
-        if isnan(loss)
-            error("NaN loss encountered in iter $iter!")
-        end
-
-        if iter == 1 || iter == maxiters || iter % 1000 == 0
-            throughput = total_samples / (time() - start_time)
-            @printf("Step %4d | Loss: %8.4f | Throughput: %8.2f samples/s\n", iter, loss, throughput)
-        end
-    end
-
-    @time for iter in 1:maxiters
-        # Generate batch and move to device
-        x_batch = generate_mixture_data(batchsize, rng) |> xdev
-        total_samples += size(x_batch, ndims(x_batch))
-
-        # Use Lux.Training's single_train_step! which handles compilation and optimizer updates gracefully
-        (_, loss, _, train_state) = Lux.Training.single_train_step!(
-            AutoEnzyme(), loss_function, x_batch, train_state; return_gradients=Val(false)
-        )
-
-        if isnan(loss)
-            error("NaN loss encountered in iter $iter!")
-        end
-
-        if iter == 1 || iter == maxiters || iter % 1000 == 0
-            throughput = total_samples / (time() - start_time)
-            @printf("Step %4d | Loss: %8.4f | Throughput: %8.2f samples/s\n", iter, loss, throughput)
-        end
-    end
+    speedup = throughput_xla_pure / throughput_cpu
+    @printf("\n--> Reactant speedup vs Zygote: %.2fx\n", speedup)
 
     println("\nTraining complete!")
 
-    # Move parameters back to CPU for sampling
-    ps_final = train_state.parameters |> cdev
-    st_final = train_state.states |> cdev
-
-    samples = draw_samples(rng, Float32, model, ps_final, st_final, 1000)
+    samples = draw_samples(rng, Float32, flow_xla.model, flow_xla.ps, flow_xla.st, 10000)
     println("Samples generated: ", size(samples))
 end
 

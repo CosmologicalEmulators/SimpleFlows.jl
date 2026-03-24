@@ -2023,6 +2023,10 @@ deps = ["Bijectors", "ChainRulesCore", "ConcreteStructs", "DifferentiationInterf
 path = ".."
 uuid = "7aff1418-a6e2-48c2-ba03-ae8e32e98757"
 version = "0.1.0"
+weakdeps = ["Enzyme", "Reactant"]
+
+    [deps.SimpleFlows.extensions]
+    ReactantExt = ["Reactant", "Enzyme"]
 
 [[deps.SimpleTraits]]
 deps = ["InteractiveUtils", "MacroTools"]
