@@ -43,21 +43,18 @@ function _single_inverse(model::Union{RealNVP, NeuralSplineFlow, MaskedAutoregre
         # Density estimation: u = (x - m) * exp(-alpha). Fast O(1).
         x_next, ld = Bijectors.with_logabsdet_jacobian(bj, x)
     else
-        mask = st.mask_list[i]
-        p_list = get(st, :perm_list, nothing)
-        ip_list = get(st, :invperm_list, nothing)
-        dt_list = get(st, :D_tr_list, nothing)
+        mask = model isa RealNVP ? model.mask_list[i] : st.mask_list[i]
 
-        cond_fn = let m = model.conditioners[k], p = ps.conditioners[k],
+        cond_fn = let m_layer = model.conditioners[k], p = ps.conditioners[k],
                       s = st.conditioners[k]
-            x_cond -> Lux.apply(m, x_cond, p, s)[1]
+            x_cond -> Lux.apply(m_layer, x_cond, p, s)[1]
         end
         
         bj = if model isa RealNVP
-            MaskedCoupling(mask, cond_fn, AffineBijector,
-                           p_list === nothing ? nothing : p_list[i],
-                           ip_list === nothing ? nothing : ip_list[i],
-                           dt_list === nothing ? nothing : dt_list[i])
+            p    = model.perm_list[i]
+            invp = model.invperm_list[i]
+            D_tr = model.D_tr_list[i]
+            MaskedCoupling(mask, cond_fn, AffineBijector, p, invp, D_tr)
         else
             MaskedCoupling(mask, cond_fn, p -> NSFCouplingBijector_from_flat(p, model.K, model.tail_bound))
         end
@@ -89,21 +86,18 @@ function draw_samples(rng::AbstractRNG, ::Type{T}, model::Union{RealNVP, NeuralS
             bj = MAFBijector(model.mades[k], ps.mades[k], st.mades[k])
             x, _ = forward_and_log_det(bj, x)
         else
-            mask = st.mask_list[i]
-            p_list = get(st, :perm_list, nothing)
-            ip_list = get(st, :invperm_list, nothing)
-            dt_list = get(st, :D_tr_list, nothing)
+            mask = model isa RealNVP ? model.mask_list[i] : st.mask_list[i]
 
-            cond_fn = let m = model.conditioners[k], p = ps.conditioners[k],
+            cond_fn = let m_layer = model.conditioners[k], p = ps.conditioners[k],
                           s = st.conditioners[k]
-                x_cond -> Lux.apply(m, x_cond, p, s)[1]
+                x_cond -> Lux.apply(m_layer, x_cond, p, s)[1]
             end
             
             bj = if model isa RealNVP
-                MaskedCoupling(mask, cond_fn, AffineBijector,
-                               p_list === nothing ? nothing : p_list[i],
-                               ip_list === nothing ? nothing : ip_list[i],
-                               dt_list === nothing ? nothing : dt_list[i])
+                p    = model.perm_list[i]
+                invp = model.invperm_list[i]
+                D_tr = model.D_tr_list[i]
+                MaskedCoupling(mask, cond_fn, AffineBijector, p, invp, D_tr)
             else
                 MaskedCoupling(mask, cond_fn, p -> NSFCouplingBijector_from_flat(p, model.K, model.tail_bound))
             end

@@ -46,8 +46,10 @@ Zygote = "0.7"
 [extras]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
+Enzyme = "7da242da-285d-408b-848b-ee64a0cabb6e"
 Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
+Reactant = "3c362404-f0a4-420d-9292-04b3cf077fa5"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "DifferentiationInterface", "Mooncake", "BenchmarkTools"]
+test = ["Test", "DifferentiationInterface", "Mooncake", "BenchmarkTools", "Reactant", "Enzyme"]

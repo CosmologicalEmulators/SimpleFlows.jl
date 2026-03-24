@@ -24,6 +24,7 @@ Masks alternate between even/odd dimensions.
     mask_list          :: Vector{Vector{Bool}}
     perm_list          :: Vector{Vector{Int}}
     invperm_list       :: Vector{Vector{Int}}
+    D_tr_list          :: Vector{Int}
     dist_dims          :: Int
     n_transforms       :: Int
     hidden_layer_sizes :: Vector{Int}
@@ -33,28 +34,22 @@ function RealNVP(; n_transforms::Int, dist_dims::Int,
                    hidden_layer_sizes::Vector{Int}, activation=gelu)
     D = dist_dims
     
-    # Pre-generate masks and permutations
-    mask_list = [Vector{Bool}(collect(1:D) .% 2 .== i % 2)
-                 for i in 1:n_transforms]
+    # Pre-generate masks, permutations, and transformed dimensions
+    mask_list = [Vector{Bool}(collect(1:D) .% 2 .== i % 2) for i in 1:n_transforms]
     perm_list = [ [findall(m); findall(.!m)] for m in mask_list ]
     invperm_list = [ invperm(p) for p in perm_list ]
+    D_tr_list = [sum(m) for m in mask_list]
                  
-    mlps = []
-    for i in 1:n_transforms
-        m = mask_list[i]
-        D_tr = sum(m)
-        push!(mlps, MLP(D, hidden_layer_sizes, 2 * D_tr; activation))
-    end
+    mlps = [MLP(D, hidden_layer_sizes, 2 * D_tr_list[i]; activation) for i in 1:n_transforms]
     
     keys_ = ntuple(i -> Symbol(:conditioners_, i), n_transforms)
     conditioners = NamedTuple{keys_}(Tuple(mlps))
-    return RealNVP(conditioners, mask_list, perm_list, invperm_list, D, n_transforms, hidden_layer_sizes)
+    return RealNVP(conditioners, mask_list, perm_list, invperm_list, D_tr_list, D, n_transforms, hidden_layer_sizes)
 end
 
 function Lux.initialstates(rng::AbstractRNG, m::RealNVP)
-    return (; mask_list=m.mask_list, 
-              perm_list=m.perm_list, 
-              invperm_list=m.invperm_list,
-              D_tr_list=[sum(m) for m in m.mask_list],
-              conditioners=Lux.initialstates(rng, m.conditioners))
+    # Only conditioner states. Static metadata (masks, perms, D_tr)
+    # lives in the model struct and must NOT be placed in `st`,
+    # which gets device-transferred and converted to TracedRArrays.
+    return (; conditioners=Lux.initialstates(rng, m.conditioners))
 end

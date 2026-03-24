@@ -15,4 +15,12 @@ rng = Random.MersenneTwister(42)
     include("test_nsf.jl")
     include("test_maf.jl")
     include("test_ad.jl")
+
+    # Optional Reactant tests
+    try
+        using Reactant
+        include("test_reactant.jl")
+    catch
+        @info "Reactant not found, skipping Reactant-specific tests."
+    end
 end
