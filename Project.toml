@@ -43,12 +43,19 @@ Statistics = "1.10"
 Test = "1.10"
 Zygote = "0.7"
 
+[weakdeps]
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
+
+[extensions]
+ReactantExt = ["Reactant", "Enzyme"]
+
 [extras]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
-Enzyme = "7da242da-285d-408b-848b-ee64a0cabb6e"
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
-Reactant = "3c362404-f0a4-420d-9292-04b3cf077fa5"
+Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
