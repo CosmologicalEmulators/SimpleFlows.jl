@@ -20,8 +20,8 @@ println("CPU device: ", cdev)
 
 # 2. Toy Dataset & Loss Function
 function generate_mixture_data(n, rng=Random.default_rng())
-    x1 = randn(rng, Float32, 2, n ÷ 2) .- 2.0f0
-    x2 = randn(rng, Float32, 2, n ÷ 2) .+ 2.0f0
+    x1 = randn(rng, Float32, 6, n ÷ 2) .- 2.0f0
+    x2 = randn(rng, Float32, 6, n ÷ 2) .+ 2.0f0
     return hcat(x1, x2)
 end
 
@@ -36,38 +36,38 @@ function main()
     rng = Random.default_rng()
     Random.seed!(rng, 42)
 
-    D = 2
+    D = 6
     n_transforms = 4
     hidden_dims = 32
     println("Initializing RealNVP...")
 
-    model = RealNVP(; n_transforms=n_transforms, dist_dims=D, hidden_layer_sizes=[hidden_dims, hidden_dims])
+    model = RealNVP(; n_transforms=n_transforms, dist_dims=D, hidden_layer_sizes=[hidden_dims, hidden_dims, hidden_dims, hidden_dims, hidden_dims])
 
     println("\n--- Performance Comparison: Original train_flow! (Zygote on CPU) ---")
     ps_cpu, st_cpu = Lux.setup(rng, model)
     ps_cpu = Lux.fmap(x -> x isa AbstractArray ? Float32.(x) : x, ps_cpu)
 
     # Generate a fixed dataset for the CPU training
-    n_train_samples = 512 * 10 # 10 batches per epoch
+    n_train_samples = 1000 # 10 batches per epoch
     x_train_cpu = generate_mixture_data(n_train_samples, rng)
 
     # Wrap in FlowDistribution
     flow_cpu = FlowDistribution(model, ps_cpu, st_cpu, D, [hidden_dims, hidden_dims], MinMaxNormalizer(x_train_cpu))
 
     # Train for 10 epochs (10 * 10 = 100 steps)
-    #t_start_cpu = time()
-    #train_flow!(flow_cpu, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
-    #t_end_cpu = time()
+    t_start_cpu = time()
+    train_flow!(flow_cpu, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
+    t_end_cpu = time()
 
-    #t_start_cpu = time()
-    #train_flow!(flow_cpu, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
-    #t_end_cpu = time()
+    t_start_cpu = time()
+    train_flow!(flow_cpu, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
+    t_end_cpu = time()
 
-    #@time train_flow!(flow_cpu, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
+    @time train_flow!(flow_cpu, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
 
-    #total_samples_cpu = n_train_samples * 10
-    #throughput_cpu = total_samples_cpu / (t_end_cpu - t_start_cpu)
-    #@printf("Original train_flow! completed 100 steps in %.2fs | Throughput: %.2f samples/s\n", (t_end_cpu - t_start_cpu), throughput_cpu)
+    total_samples_cpu = n_train_samples
+    throughput_cpu = total_samples_cpu / (t_end_cpu - t_start_cpu)
+    @printf("Original train_flow! completed 100 steps in %.2fs | Throughput: %.2f samples/s\n", (t_end_cpu - t_start_cpu), throughput_cpu)
 
     #println("\n--- Performance Comparison: Reactant (Enzyme on XLA) ---")
 
@@ -84,11 +84,11 @@ function main()
     # Run a second time to see the pure execution speed without compilation overhead
     println("\nRunning train_flow_reactant! again (pure XLA execution speed)...")
     t_start_xla_pure = time()
-    train_flow_reactant!(flow_xla, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
+    train_flow_reactant!(flow_xla, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=true)
     t_end_xla_pure = time()
-    @time train_flow_reactant!(flow_xla, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=false)
+    @time train_flow_reactant!(flow_xla, x_train_cpu; n_epochs=10000, lr=1f-3, batch_size=512, verbose=true)
 
-    throughput_xla_pure = (n_train_samples * 100) / (t_end_xla_pure - t_start_xla_pure)
+    throughput_xla_pure = (n_train_samples) / (t_end_xla_pure - t_start_xla_pure)
     @printf("Reactant train_flow_reactant! completed 1000 steps in %.2fs | Throughput: %.2f samples/s\n", (t_end_xla_pure - t_start_xla_pure), throughput_xla_pure)
 
     speedup = throughput_xla_pure / throughput_cpu

@@ -38,7 +38,7 @@ function train_flow!(flow::FlowDistribution{T}, data::AbstractMatrix;
     # partial=false avoids recompilation due to changing batch shapes.
     n_batches_per_epoch = size(data_norm, 2) ÷ batch_size
     maxiters = n_epochs * n_batches_per_epoch
-    
+
     loader = Iterators.cycle(
         DataLoader(data_norm; batchsize=batch_size, shuffle=true, partial=false)
     )
@@ -59,7 +59,7 @@ function train_flow!(flow::FlowDistribution{T}, data::AbstractMatrix;
         # Periodic logging at epoch boundaries
         if n_batches_per_epoch > 0 && iter % n_batches_per_epoch == 0
             epoch = iter ÷ n_batches_per_epoch
-            if verbose && epoch % 100 == 0
+            if verbose && epoch % 1000 == 0
                 @info "Epoch $(lpad(epoch, 5)) | mean NLL: $(round(running_loss / n_batches_per_epoch; digits=4))"
             end
             running_loss = zero(T)
@@ -78,4 +78,3 @@ Train a flow using the Reactant (XLA) backend for high-performance execution.
 Requires `using Reactant` and `using Enzyme` to be loaded in your environment.
 """
 function train_flow_reactant! end
-
