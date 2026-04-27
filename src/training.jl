@@ -12,7 +12,7 @@ negative log-likelihood on the normalised data.
 - `n_epochs=1000`: number of passes over the dataset.
 - `lr=1f-3`: learning rate for Adam.
 - `batch_size=256`: mini-batch size.
-- `verbose=true`: print NLL every 100 epochs.
+- `verbose=true`: print mean NLL at each epoch that is a multiple of 100.
 """
 function train_flow!(flow::FlowDistribution{T}, data::AbstractMatrix;
                      n_epochs::Int=1000,

@@ -1,7 +1,4 @@
 # src/splines.jl
-using NNlib
-using ChainRulesCore
-using ForwardDiff
 
 # Helper to find bins. Zygote ignores gradients for indices.
 function compute_bin_idx(cum_arrays::AbstractMatrix{T}, inputs::AbstractVector{T}, K::Int) where {T<:Real}

@@ -1,8 +1,4 @@
 # src/made.jl
-using Lux
-using Random
-using Statistics
-
 """
     create_degrees(input_dims::Int, hidden_dims::Vector{Int}, out_dims::Int)
 

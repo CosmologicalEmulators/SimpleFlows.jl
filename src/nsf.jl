@@ -1,9 +1,4 @@
 # src/nsf.jl
-using Lux
-using Bijectors
-using Random
-using LinearAlgebra
-
 """
     NSFSplineBijector(mask, params, K, tail_bound)
 
@@ -15,7 +10,7 @@ A Neural Spline Flow (NSF) coupling layer using Rational Quadratic Splines.
 struct NSFSplineBijector
     params
     K::Int
-    tail_bound::Float64
+    tail_bound::Float64  # kept Float64; converted to input eltype at call site
 end
 
 function forward_and_log_det(b::NSFSplineBijector, x::AbstractArray)

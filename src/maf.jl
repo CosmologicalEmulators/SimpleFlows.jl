@@ -1,9 +1,4 @@
 # src/maf.jl
-using Lux
-using Bijectors
-using Random
-using LinearAlgebra
-
 # ── MAF Bijector ────────────────────────────────────────────────────────────
 
 struct MAFBijector

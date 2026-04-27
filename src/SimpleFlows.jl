@@ -4,6 +4,7 @@ using Lux, Random, Statistics, MLUtils, ConcreteStructs
 using Distributions
 using Bijectors
 using JSON, NPZ
+using NNlib
 using Optimisers, Zygote
 using ChainRulesCore
 
