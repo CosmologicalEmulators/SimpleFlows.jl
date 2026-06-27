@@ -3,11 +3,15 @@ module ReactantExt
 using SimpleFlows
 using Reactant
 
+# Reactant-specific array type aliases for vectors and matrices.
+# Used for dispatch since Reactant does not currently export a stable public abstract supertype.
 const DeviceVec{T} = Union{Reactant.TracedRArray{T, 1}, Reactant.ConcretePJRTArray{T, 1}}
 const DeviceMat{T} = Union{Reactant.TracedRArray{T, 2}, Reactant.ConcretePJRTArray{T, 2}}
 
 # ── 1. Vectorized Bin Search Overloads ────────────────────────────────────────
 
+# XLA-compatible vectorized bin search. Uses a dense broadcast comparison and 
+# reduction to avoid dynamic branch indexing which is unsupported/inefficient on XLA.
 function SimpleFlows.compute_bin_idx(cum_arrays::DeviceMat, inputs::DeviceVec, K::Int)
     cmp = reshape(inputs, :, 1) .>= cum_arrays
     idx = vec(sum(cmp; dims=2))
@@ -28,6 +32,8 @@ end
 
 # ── 2. Differentiable Gather Overloads ────────────────────────────────────────
 
+# XLA-compatible differentiable gather. Uses one-hot matrix multiplication / broadcast
+# to retrieve values without dynamic indexing paths.
 function SimpleFlows.gather_from_matrix(A::DeviceMat, indices::DeviceVec)
     M, C = size(A)
     one_hot = eltype(A).(reshape(1:C, 1, C) .== reshape(indices, M, 1))

@@ -4,6 +4,7 @@
 dsum(x; dims) = dropdims(sum(x; dims=dims); dims=dims)
 
 """Elementwise log-pdf of a standard normal."""
+# Widened signature from gaussian_logpdf(x::Real) to allow Reactant traced arrays.
 gaussian_logpdf(x) = -oftype(x, 0.5) * (log(oftype(x, 2π)) + x^2)
 
 # ── AffineBijector ────────────────────────────────────────────────────────────
@@ -44,6 +45,8 @@ Coupling layer using a binary mask. Unmasked dimensions condition the bijector;
 masked dimensions are transformed.
 """
 @concrete struct MaskedCoupling
+    # The mask field is intentionally left unannotated (previously mask <: AbstractArray{Bool})
+    # to support Reactant's custom boolean traced array representation.
     mask
     conditioner
     bijector_constructor

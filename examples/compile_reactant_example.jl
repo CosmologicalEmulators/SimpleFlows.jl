@@ -37,9 +37,9 @@ function main()
     )
 
     # 4. Fit normalizer and train the model using standard CPU pipeline
-    println("\nTraining with the standard CPU pipeline (100 epochs)...")
+    println("\nTraining with the standard CPU pipeline (5 epochs)...")
     train_flow!(flow, data;
-        n_epochs = 100,
+        n_epochs = 5,
         batch_size = 256,
         verbose = true
     )

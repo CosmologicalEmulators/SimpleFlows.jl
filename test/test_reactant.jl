@@ -23,6 +23,9 @@ function compile_gradient_wrt_x(x, flow)
 end
 
 @testset "Reactant Extension Tests" begin
+    # Note: On CPU-only environments, Reactant may output CUDA probing/initialization
+    # warning logs (e.g., "failed call to cuInit"). These warnings are benign and
+    # the suite will run successfully on CPU.
     Reactant.set_default_backend("cpu")
     
     # Setup dimension and sample size
