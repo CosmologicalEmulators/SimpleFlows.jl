@@ -10,9 +10,9 @@ The change-of-variables term added to logpdf is:
     log |det J| = sum(-log(x_max - x_min))
 which is a constant precomputed at construction time.
 """
-struct MinMaxNormalizer{T<:Real}
-    x_min   :: Vector{T}
-    x_max   :: Vector{T}
+struct MinMaxNormalizer{T<:Real, A}
+    x_min   :: A
+    x_max   :: A
     log_jac :: T          # precomputed = sum(-log(x_max - x_min))
 end
 
@@ -31,7 +31,7 @@ function MinMaxNormalizer(x::AbstractMatrix{T}) where {T}
     
     # Base volume change: sum(-log(x_max - x_min))
     logabsdet = sum(-log.(x_max .- x_min))
-    return MinMaxNormalizer{T}(x_min, x_max, logabsdet)
+    return MinMaxNormalizer(x_min, x_max, logabsdet)
 end
 
 """

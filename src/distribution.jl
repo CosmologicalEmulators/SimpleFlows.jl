@@ -60,24 +60,24 @@ end
 
 Distributions.length(d::FlowDistribution) = d.n_dims
 
-function _apply_normalizer(d::FlowDistribution{T}, x::AbstractMatrix{<:Real}) where {T}
+function _apply_normalizer(d::FlowDistribution{T}, x::AbstractMatrix) where {T}
     isnothing(d.normalizer) && return x, zero(T)
     return SimpleFlows.normalize(d.normalizer, x), d.normalizer.log_jac
 end
 
-function _apply_normalizer(d::FlowDistribution{T}, x::AbstractVector{<:Real}) where {T}
+function _apply_normalizer(d::FlowDistribution{T}, x::AbstractVector) where {T}
     isnothing(d.normalizer) && return x, zero(T)
     return SimpleFlows.normalize(d.normalizer, x), d.normalizer.log_jac
 end
 
-function Distributions.logpdf(d::FlowDistribution, x::AbstractVector{<:Real})
+function Distributions.logpdf(d::FlowDistribution, x::AbstractVector)
     x_norm, log_jac = _apply_normalizer(d, x)
     x_mat = reshape(x_norm, :, 1)
     lp = log_prob(d.model, d.ps, d.st, x_mat)
     return first(lp) + log_jac
 end
 
-function Distributions.logpdf(d::FlowDistribution, x::AbstractMatrix{<:Real})
+function Distributions.logpdf(d::FlowDistribution, x::AbstractMatrix)
     x_norm, log_jac = _apply_normalizer(d, x)
     lp = log_prob(d.model, d.ps, d.st, x_norm)
     return lp .+ log_jac

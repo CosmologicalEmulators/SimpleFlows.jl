@@ -23,5 +23,10 @@ export RealNVP, NeuralSplineFlow, MaskedAutoregressiveFlow, FlowDistribution
 export MinMaxNormalizer
 export train_flow!, save_trained_flow, load_trained_flow, normalize, denormalize
 export unconstrained_rational_quadratic_spline
+export to_reactant
+
+function to_reactant(x)
+    error("Reactant.jl is not loaded. Please run `using Reactant` to use `to_reactant`.")
+end
 
 end
