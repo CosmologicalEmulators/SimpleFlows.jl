@@ -96,13 +96,25 @@ end
     end
 
     @testset "Loaded trained flow can be converted and compiled" begin
-        flow_cpu = load_trained_flow(joinpath(@__DIR__, "..", "trained_flows", "mvn_4d"))
-        x_cpu = randn(Float32, length(flow_cpu), 8)
+        # 1. Create a flow on CPU
+        flow_cpu = FlowDistribution(Float32; architecture=:RealNVP, n_transforms=2,
+                                    dist_dims=3, hidden_layer_sizes=[8, 8], rng=rng)
+        # Attach a normalizer
+        flow_cpu.normalizer = MinMaxNormalizer(randn(rng, Float32, 3, 10))
 
-        flow_react = to_reactant(flow_cpu)
+        # 2. Save it to a temporary directory (avoids committing binary files to repository)
+        tmpdir = mktempdir()
+        save_trained_flow(tmpdir, flow_cpu)
+
+        # 3. Load it back
+        flow_loaded = load_trained_flow(tmpdir; rng=rng)
+        
+        # 4. Convert and compile
+        x_cpu = randn(rng, Float32, 3, 8)
+        flow_react = to_reactant(flow_loaded)
         x_react = Reactant.to_rarray(x_cpu)
 
-        ref = logpdf(flow_cpu, x_cpu)
+        ref = logpdf(flow_loaded, x_cpu)
         f = Reactant.@compile sync=true evaluate_flow_logpdf(x_react, flow_react)
         got = f(x_react, flow_react)
 
