@@ -116,8 +116,8 @@ function save_trained_flow(path::String, flow::FlowDistribution)
     flat = _flatten_params(flow.ps)
     # Also save normalizer if present
     if !isnothing(flow.normalizer)
-        flat["normalizer_xmin"] = flow.normalizer.x_min
-        flat["normalizer_xmax"] = flow.normalizer.x_max
+        flat["normalizer_xmin"] = Array(flow.normalizer.x_min)
+        flat["normalizer_xmax"] = Array(flow.normalizer.x_max)
     end
     NPZ.npzwrite(joinpath(path, "weights.npz"), flat)
 
@@ -151,7 +151,7 @@ function load_trained_flow(path::String; rng::AbstractRNG=Random.default_rng())
         xmin = flat["normalizer_xmin"]
         xmax = flat["normalizer_xmax"]
         T_norm = eltype(xmin)
-        flow.normalizer = MinMaxNormalizer{T_norm}(xmin, xmax, T_norm(sum(-log.(xmax .- xmin))))
+        flow.normalizer = MinMaxNormalizer(xmin, xmax, T_norm(sum(-log.(xmax .- xmin))))
         delete!(flat, "normalizer_xmin")
         delete!(flat, "normalizer_xmax")
     end

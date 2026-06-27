@@ -79,3 +79,33 @@ julia --project=. examples/train_multinormal.jl
 julia --project=. examples/train_multinormal_nsf.jl
 julia --project=. examples/train_multinormal_maf.jl
 ```
+
+## Reactant JIT Acceleration (Optional)
+
+`SimpleFlows.jl` supports compiling density evaluation and input gradients on the GPU/TPU/CPU using the [Reactant.jl](https://github.com/JuliaScience/Reactant.jl) XLA compiler.
+
+### Workflow: Compile and Evaluate a Trained Flow
+
+```julia
+using SimpleFlows
+using Reactant
+using Distributions: logpdf
+
+# 1. Load your trained flow from CPU
+flow_cpu = load_trained_flow("my_flow/")
+
+# 2. Port the parameters and normalizer state to Reactant device memory
+flow_react = to_reactant(flow_cpu)
+
+# 3. Create input data on the device
+x_cpu = randn(Float32, length(flow_cpu), 8)
+x_react = Reactant.to_rarray(x_cpu)
+
+# 4. Compile the logpdf evaluation function
+compiled_logpdf = Reactant.@compile logpdf(flow_react, x_react)
+
+# 5. Run JIT-compiled inference (near-instant execution after initial compilation compile-time)
+log_probs = compiled_logpdf(flow_react, x_react)
+```
+
+For compiling reverse-mode input gradients on-device, `Enzyme.jl` can be used directly on the compiled Reactant code. See `test/test_reactant.jl` for reference.

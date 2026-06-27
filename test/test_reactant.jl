@@ -3,8 +3,6 @@ using SimpleFlows
 using Reactant
 using Random
 using Distributions
-using Lux
-using Bijectors
 using Zygote
 using Enzyme
 
@@ -80,6 +78,32 @@ end
             # 8. Check Gradient Parity
             @test Array(grad_react) ≈ grad_ref atol=1e-4 rtol=1e-4
         end
+    end
+
+    @testset "to_reactant without normalizer" begin
+        flow_cpu = FlowDistribution(Float32; architecture=:RealNVP, n_transforms=1,
+                                    dist_dims=2, hidden_layer_sizes=[4], rng=rng)
+        flow_react = to_reactant(flow_cpu)
+        @test flow_react.normalizer === nothing
+
+        x_cpu = randn(rng, Float32, 2, 4)
+        x_react = Reactant.to_rarray(x_cpu)
+        f = Reactant.@compile sync=true evaluate_flow_logpdf(x_react, flow_react)
+        @test Array(f(x_react, flow_react)) ≈ logpdf(flow_cpu, x_cpu) rtol=1e-5 atol=1e-5
+    end
+
+    @testset "Loaded trained flow can be converted and compiled" begin
+        flow_cpu = load_trained_flow(joinpath(@__DIR__, "..", "trained_flows", "mvn_4d"))
+        x_cpu = randn(Float32, length(flow_cpu), 8)
+
+        flow_react = to_reactant(flow_cpu)
+        x_react = Reactant.to_rarray(x_cpu)
+
+        ref = logpdf(flow_cpu, x_cpu)
+        f = Reactant.@compile sync=true evaluate_flow_logpdf(x_react, flow_react)
+        got = f(x_react, flow_react)
+
+        @test Array(got) ≈ ref rtol=1e-5 atol=1e-5
     end
 end
 

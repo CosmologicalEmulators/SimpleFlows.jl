@@ -2,9 +2,6 @@ module ReactantExt
 
 using SimpleFlows
 using Reactant
-using NNlib
-using Bijectors: Bijectors
-using Lux
 
 const DeviceVec{T} = Union{Reactant.TracedRArray{T, 1}, Reactant.ConcretePJRTArray{T, 1}}
 const DeviceMat{T} = Union{Reactant.TracedRArray{T, 2}, Reactant.ConcretePJRTArray{T, 2}}
@@ -96,11 +93,11 @@ function SimpleFlows.to_reactant(norm::SimpleFlows.MinMaxNormalizer)
     )
 end
 
-function SimpleFlows.to_reactant(flow::SimpleFlows.FlowDistribution)
+function SimpleFlows.to_reactant(flow::SimpleFlows.FlowDistribution{T, M}) where {T, M}
     reactant_ps = Reactant.to_rarray(flow.ps)
     reactant_norm = isnothing(flow.normalizer) ? nothing : SimpleFlows.to_reactant(flow.normalizer)
     
-    return SimpleFlows.FlowDistribution(
+    return SimpleFlows.FlowDistribution{T, M}(
         flow.model,
         reactant_ps,
         flow.st,
