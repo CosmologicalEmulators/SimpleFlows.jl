@@ -3,8 +3,14 @@ using NNlib
 using ChainRulesCore
 using ForwardDiff
 
+function gather_from_matrix(A::AbstractMatrix, indices::AbstractVector)
+    M = size(A, 1)
+    linear_indices = (indices .- 1) .* M .+ (1:M)
+    return A[linear_indices]
+end
+
 # Helper to find bins. Zygote ignores gradients for indices.
-function compute_bin_idx(cum_arrays::AbstractMatrix{T}, inputs::AbstractVector{T}, K::Int) where {T<:Real}
+function compute_bin_idx(cum_arrays::AbstractMatrix{T}, inputs::AbstractVector{T}, K::Int) where {T}
     M = length(inputs)
     bin_idx = zeros(Int, M)
     for i in 1:M
@@ -37,7 +43,7 @@ function unconstrained_rational_quadratic_spline(
     min_bin_height=1e-3,
     min_derivative=1e-3;
     inverse::Bool=false
-) where {T_in<:Real, T_w<:Real, T_h<:Real, T_dv<:Real}
+) where {T_in, T_w, T_h, T_dv}
     # Operations will be performed in the promoted type
     T = promote_type(T_in, T_w, T_h, T_dv)
     
@@ -66,7 +72,7 @@ function unconstrained_rational_quadratic_spline(
     # We will compute the spline for ALL points, but only conditionally select the output
     # This avoids Zygote mutating array issues, relying on `ifelse`.
     # To avoid NaNs or domain errors, we clamp the inputs outside the tail bound.
-    clamped_inputs = clamp.(inputs, -tail_bound, tail_bound)
+    clamped_inputs = min.(max.(inputs, -tail_bound), tail_bound)
     
     # 3. Compute normalize bin parameters
     widths_raw = NNlib.softmax(unnormalized_widths; dims=2)
@@ -97,23 +103,18 @@ function unconstrained_rational_quadratic_spline(
     end
     
     # 5. Gather bin specific parameters
-    # Zygote friendly gather using linear indexing
-    # cumwidths is (M, K+1)
-    # widths is (M, K)
-    linear_indices_k_plus_1 = (bin_idx .- 1) .* M .+ (1:M)
-    linear_indices_k = (bin_idx .- 1) .* M .+ (1:M)
+    input_cumwidths = gather_from_matrix(cumwidths, bin_idx)
+    input_bin_widths = gather_from_matrix(widths, bin_idx)
     
-    input_cumwidths = cumwidths[linear_indices_k_plus_1]
-    input_bin_widths = widths[linear_indices_k]
-    
-    input_cumheights = cumheights[linear_indices_k_plus_1]
-    input_heights = heights[linear_indices_k]
+    input_cumheights = gather_from_matrix(cumheights, bin_idx)
+    input_heights = gather_from_matrix(heights, bin_idx)
     
     delta = heights ./ widths
-    input_delta = delta[linear_indices_k]
+    input_delta = gather_from_matrix(delta, bin_idx)
     
-    input_derivatives = derivatives[linear_indices_k_plus_1]
-    input_derivatives_plus_one = derivatives[linear_indices_k_plus_1 .+ M]
+    input_derivatives = gather_from_matrix(derivatives, bin_idx)
+    input_derivatives_plus_one = gather_from_matrix(derivatives, bin_idx .+ 1)
+
     
     # 6. Evaluate spline equations
     if inverse

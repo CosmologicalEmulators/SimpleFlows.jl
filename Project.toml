@@ -27,8 +27,9 @@ ChainRulesCore = "1.26"
 ConcreteStructs = "0.2"
 DifferentiationInterface = "0.7.16"
 Distributions = "0.25"
+Enzyme = "0.13"
 ForwardDiff = "1.3"
-JSON = "0.21"
+JSON = "0.21, 1"
 LinearAlgebra = "1.10"
 Lux = "1.31"
 MLUtils = "0.4"
@@ -37,15 +38,25 @@ NNlib = "0.9"
 NPZ = "0.4"
 Optimisers = "0.4"
 Random = "1.10"
+Reactant = "0.2"
 Statistics = "1.10"
 Test = "1.10"
 Zygote = "0.7"
 
+[weakdeps]
+Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
+
+[extensions]
+ReactantExt = "Reactant"
+
 [extras]
 BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 DifferentiationInterface = "a0c0ee7d-e4b9-4e03-894e-1c5f64a51d63"
+Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
 Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
+Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "DifferentiationInterface", "Mooncake", "BenchmarkTools"]
+test = ["Test", "DifferentiationInterface", "Mooncake", "BenchmarkTools", "Reactant", "Enzyme"]
+
