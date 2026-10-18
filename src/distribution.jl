@@ -133,12 +133,12 @@ Distributions.length(d::FlowDistribution) = d.n_dims
 
 function _apply_normalizer(d::FlowDistribution{T}, x::AbstractMatrix) where {T}
     isnothing(d.normalizer) && return x, zero(T)
-    return SimpleFlows.normalize(d.normalizer, x), d.normalizer.log_jac
+    return SimpleFlows.normalize(d.normalizer, x), _normalizer_log_jac(d.normalizer)
 end
 
 function _apply_normalizer(d::FlowDistribution{T}, x::AbstractVector) where {T}
     isnothing(d.normalizer) && return x, zero(T)
-    return SimpleFlows.normalize(d.normalizer, x), d.normalizer.log_jac
+    return SimpleFlows.normalize(d.normalizer, x), _normalizer_log_jac(d.normalizer)
 end
 
 # Widened to AbstractVector (instead of AbstractVector{<:Real}) to allow Reactant traced arrays

@@ -146,3 +146,8 @@ normalize(n::WhiteningNormalizer, x::AbstractVector) =
 denormalize(n::WhiteningNormalizer, z::AbstractMatrix) = n.chol * z .+ n.mean
 
 denormalize(n::WhiteningNormalizer, z::AbstractVector) = n.chol * z .+ n.mean
+
+# Host evaluation uses the fitted constant. Device methods derive it from traced
+# arrays so reusing a compiled flow with a different normalizer updates its density.
+_normalizer_log_jac(n::MinMaxNormalizer) = n.log_jac
+_normalizer_log_jac(n::WhiteningNormalizer) = n.log_jac

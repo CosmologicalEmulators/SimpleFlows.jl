@@ -22,8 +22,8 @@ function compute_bin_idx(cum_arrays::AbstractMatrix{T}, inputs::AbstractVector{T
 end
 ChainRulesCore.@non_differentiable compute_bin_idx(Any...)
 
-# Remove round-off excursions of theta from [0, 1] without altering the derivative at ties
-# (clamp/min/max pick different one-sided derivatives in different AD backends).
+# Remove round-off excursions of theta from [0, 1]. Derivatives at ties can
+# differ between AD backends; exact tail endpoints bypass this clamp below.
 _clamp01(v) = ifelse(v < 0, zero(v), ifelse(v > 1, one(v), v))
 
 # sqrt that is safe for AD when round-off makes a mathematically non-negative argument <= 0.
@@ -73,14 +73,15 @@ function unconstrained_rational_quadratic_spline(
     pad_c = fill(constant, M)
     unnorm_derivs = hcat(pad_c, unnormalized_derivatives, pad_c) # (M, K+1)
     
-    # 2. Extract valid interior regions (using Mask to avoid mutating variables for Zygote)
-    inside_mask = (inputs .>= -tail_bound) .& (inputs .<= tail_bound)
+    # 2. Exact endpoints use the identity tail: its output slope is one and its
+    # log-Jacobian is zero. This also fixes the smooth identity-density score at
+    # the endpoints without relying on AD-specific tie handling in _clamp01.
+    inside_mask = (inputs .> -tail_bound) .& (inputs .< tail_bound)
     
     # We will compute the spline for ALL points, but only conditionally select the output
     # This avoids Zygote mutating array issues, relying on `ifelse`.
     # To avoid NaNs or domain errors, we clamp the inputs outside the tail bound.
-    # `ifelse` rather than min/max so that at exactly +-tail_bound the derivative passes through
-    # (the spline is C1 with its identity tails: slope 1 on both sides) in every AD backend.
+    # Values outside the strict interior are discarded in favor of the identity tail.
     clamped_inputs = ifelse.(inputs .< -tail_bound, -tail_bound, ifelse.(inputs .> tail_bound, tail_bound, inputs))
     
     # 3. Compute normalize bin parameters

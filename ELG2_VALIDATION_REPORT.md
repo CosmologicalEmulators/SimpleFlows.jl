@@ -12,6 +12,23 @@ Each cell: Float32, three transforms, hidden widths [32,32], batch 256, 150 epoc
 
 ## Accuracy
 
+### Post-review correctness gate
+
+Independent Computer Scientist review (GPT-6 Astra, High reasoning) identified
+two additional correctness gaps after the original campaign: exact NSF tail
+endpoint input gradients, and stale density-normalization constants when reusing
+a compiled function with a replacement fitted normalizer. Both are corrected.
+Exact endpoints now use the identity tail; device-backed normalizers derive their
+Jacobian from dynamic arrays, while ordinary CPU evaluation retains the cached
+scalar. The analogous inherited min-max compiled-reuse issue is also covered.
+
+The repaired tree passed **1498/1498 tests** in a full `Pkg.test()` run
+(`validation_logs/pr3_corrections_full.log`). Independent reviewer reproductions
+verified endpoint scores across AD backends, zero density error in the factor-two
+normalizer-replacement control, 21/21 named dynamic-flow checks, and no accessor
+dispatch ambiguities. The earlier 24-fit and benchmark results below describe
+the original campaign; those campaigns were not rerun for these corrections.
+
 Within each architecture, the following cell is selected by **validation NLL only**, not assessment accuracy. All selected cells use whitening. NLL is mean negative log-density in physical EFT coordinates, including the normalizer Jacobian; lower is better.
 
 | Architecture | Selected backend / seed | Validation NLL | Assessment NLL | Maximum marginal KS | Maximum absolute mean shift / reference SD | SD ratio range | Maximum correlation difference |

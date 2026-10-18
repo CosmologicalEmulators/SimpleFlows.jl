@@ -112,6 +112,14 @@ end
 
 SimpleFlows._lower_solve(L::DeviceMat, y::AbstractMatrix) = _forward_substitute(L, y)
 
+# Plain scalar fields are static during tracing. Derive density corrections from
+# the same dynamic arrays used by normalize, not the cached host log_jac field.
+SimpleFlows._normalizer_log_jac(n::SimpleFlows.MinMaxNormalizer{T, A}) where {T<:Real, A<:DeviceVec} =
+    -sum(log.(n.x_max .- n.x_min))
+
+SimpleFlows._normalizer_log_jac(n::SimpleFlows.WhiteningNormalizer{T, V, M}) where {T<:Real, V, M<:DeviceMat} =
+    SimpleFlows._whitening_log_jac(n.chol)
+
 # ── 4. Reactant Device Conversion (to_reactant) ──────────────────────────────
 
 function SimpleFlows.to_reactant(norm::SimpleFlows.MinMaxNormalizer)
