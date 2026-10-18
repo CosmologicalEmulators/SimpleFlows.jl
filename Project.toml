@@ -1,6 +1,6 @@
 name = "SimpleFlows"
 uuid = "7aff1418-a6e2-48c2-ba03-ae8e32e98757"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["marcobonici <bonici.marco@gmail.com>"]
 
 [deps]

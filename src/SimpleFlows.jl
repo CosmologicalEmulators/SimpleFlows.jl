@@ -6,6 +6,7 @@ using Bijectors
 using JSON, NPZ
 using Optimisers, Zygote
 using ChainRulesCore
+using LinearAlgebra
 
 include("layers.jl")
 include("realnvp.jl")
@@ -20,8 +21,8 @@ include("training.jl")
 include("io.jl")
 
 export RealNVP, NeuralSplineFlow, MaskedAutoregressiveFlow, FlowDistribution
-export MinMaxNormalizer
-export train_flow!, save_trained_flow, load_trained_flow, normalize, denormalize
+export MinMaxNormalizer, WhiteningNormalizer
+export train_flow!, save_trained_flow, load_trained_flow, load_parameter_names, normalize, denormalize
 export unconstrained_rational_quadratic_spline
 export to_reactant
 

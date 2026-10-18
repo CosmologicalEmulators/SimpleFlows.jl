@@ -22,6 +22,13 @@ function compute_bin_idx(cum_arrays::AbstractMatrix{T}, inputs::AbstractVector{T
 end
 ChainRulesCore.@non_differentiable compute_bin_idx(Any...)
 
+# Remove round-off excursions of theta from [0, 1]. Derivatives at ties can
+# differ between AD backends; exact tail endpoints bypass this clamp below.
+_clamp01(v) = ifelse(v < 0, zero(v), ifelse(v > 1, one(v), v))
+
+# sqrt that is safe for AD when round-off makes a mathematically non-negative argument <= 0.
+_safe_sqrt(v) = ifelse(v > 0, sqrt(ifelse(v > 0, v, one(v))), zero(v))
+
 """
     unconstrained_rational_quadratic_spline(inputs, widths, heights, derivs; kwargs...)
 
@@ -66,13 +73,16 @@ function unconstrained_rational_quadratic_spline(
     pad_c = fill(constant, M)
     unnorm_derivs = hcat(pad_c, unnormalized_derivatives, pad_c) # (M, K+1)
     
-    # 2. Extract valid interior regions (using Mask to avoid mutating variables for Zygote)
-    inside_mask = (inputs .>= -tail_bound) .& (inputs .<= tail_bound)
+    # 2. Exact endpoints use the identity tail: its output slope is one and its
+    # log-Jacobian is zero. This also fixes the smooth identity-density score at
+    # the endpoints without relying on AD-specific tie handling in _clamp01.
+    inside_mask = (inputs .> -tail_bound) .& (inputs .< tail_bound)
     
     # We will compute the spline for ALL points, but only conditionally select the output
     # This avoids Zygote mutating array issues, relying on `ifelse`.
     # To avoid NaNs or domain errors, we clamp the inputs outside the tail bound.
-    clamped_inputs = min.(max.(inputs, -tail_bound), tail_bound)
+    # Values outside the strict interior are discarded in favor of the identity tail.
+    clamped_inputs = ifelse.(inputs .< -tail_bound, -tail_bound, ifelse.(inputs .> tail_bound, tail_bound, inputs))
     
     # 3. Compute normalize bin parameters
     widths_raw = NNlib.softmax(unnormalized_widths; dims=2)
@@ -116,37 +126,66 @@ function unconstrained_rational_quadratic_spline(
     input_derivatives_plus_one = gather_from_matrix(derivatives, bin_idx .+ 1)
 
     
-    # 6. Evaluate spline equations
+    # 6. Evaluate spline equations (Durkan et al. rational-quadratic spline).
+    #
+    # Within a bin, with theta in [0, 1], t = theta (1 - theta), delta = height / width and
+    # d0, d1 the knot derivatives,
+    #   y     = y_k + h (delta theta^2 + d0 t) / den,       den = delta + (d0 + d1 - 2 delta) t
+    #   dy/dx = delta^2 (d1 theta^2 + 2 delta t + d0 (1 - theta)^2) / den^2.
+    # Written as `den = delta (1 - 2t) + (d0 + d1) t` and with `dnum` below, every term is
+    # non-negative for valid parameters (t <= 1/4), so no cancellation occurs and both
+    # quantities are strictly positive; their logs therefore need no epsilon or abs.
+    # theta is clamped to [0, 1] only to remove round-off excursions at bin edges.
+    s_ = input_derivatives .+ input_derivatives_plus_one .- 2 .* input_delta
     if inverse
-        a = (clamped_inputs .- input_cumheights) .* (input_derivatives .+ input_derivatives_plus_one .- 2 .* input_delta) .+ input_heights .* (input_delta .- input_derivatives)
-        b = input_heights .* input_derivatives .- (clamped_inputs .- input_cumheights) .* (input_derivatives .+ input_derivatives_plus_one .- 2 .* input_delta)
-        c = -input_delta .* (clamped_inputs .- input_cumheights)
-        
-        discriminant = b.^2 .- 4 .* a .* c
-        # Numerical stability: splines are monotonic so discriminant >= 0.
-        # We use abs and a tiny epsilon for square root gradients.
-        root = (2 .* c) ./ (-b .- sqrt.(abs.(discriminant) .+ T(1e-12)))
-        
+        # Solve  a theta^2 + b theta + c = 0  for the root in [0, 1], where xi = y - y_k,
+        #   a = xi s + h (delta - d0),  b = h d0 - xi s,  c = -delta xi.
+        # The wanted root is (-b + sqrt(disc)) / (2a) = 2c / (-b - sqrt(disc)). The first form is
+        # used for b < 0 (there a >= |b| + |c| by f(1) >= 0, so nothing cancels), the second for
+        # b >= 0 (both terms of the denominator are negative: no cancellation, and the
+        # near-linear case a -> 0 stays finite). The discriminant equals (f'(theta))^2 >= 0
+        # exactly; the guarded square root absorbs round-off. Select the numerator and
+        # denominator BEFORE dividing: selecting between two quotients can produce NaN
+        # compiled adjoints at a=0, even with guards on the inactive denominator.
+        xi = clamped_inputs .- input_cumheights
+        a = xi .* s_ .+ input_heights .* (input_delta .- input_derivatives)
+        b = input_heights .* input_derivatives .- xi .* s_
+        c = -input_delta .* xi
+        sq = _safe_sqrt.(b .^ 2 .- 4 .* a .* c)
+        use_pos = b .>= 0
+        numerator = ifelse.(use_pos, 2 .* c, -b .+ sq)
+        denominator = ifelse.(use_pos, -b .- sq, 2 .* a)
+        root = numerator ./ denominator
+        root = _clamp01.(root)
+
+        # One Newton step on the original equation  g(theta) = h (delta theta^2 + d0 t) - xi den(theta) = 0
+        # removes the residual error of the closed form (cancellation in `disc` for near-degenerate
+        # bins). g'(root) = den dF/dtheta = h delta P / den > 0 (P = d1 theta^2 + 2 delta t + d0 (1-theta)^2), so the step is safe; for AD the step is the
+        # implicit-function derivative (the dependence on the starting root cancels at a root).
+        t0 = root .* (1 .- root)
+        den0 = input_delta .* (1 .- 2 .* t0) .+ (input_derivatives .+ input_derivatives_plus_one) .* t0
+        g = input_heights .* (input_delta .* root .^ 2 .+ input_derivatives .* t0) .- xi .* den0
+        gp = input_heights .* (2 .* input_delta .* root .+ input_derivatives .* (1 .- 2 .* root)) .- xi .* s_ .* (1 .- 2 .* root)
+        ok = gp .> 0
+        root = _clamp01.(root .- ifelse.(ok, g ./ ifelse.(ok, gp, one(T)), zero(T)))
+
         rq_outputs = root .* input_bin_widths .+ input_cumwidths
-        
         theta_one_minus_theta = root .* (1 .- root)
-        denominator = input_delta .+ ((input_derivatives .+ input_derivatives_plus_one .- 2 .* input_delta) .* theta_one_minus_theta)
-        derivative_numerator = (input_delta.^2) .* (input_derivatives_plus_one .* root.^2 .+ 2 .* input_delta .* theta_one_minus_theta .+ input_derivatives .* (1 .- root).^2)
-        
-        rq_logabsdet = log.(abs.(derivative_numerator) .+ T(1e-12)) .- 2 .* log.(abs.(denominator) .+ T(1e-12))
-        rq_logabsdet = -rq_logabsdet
+        denominator = input_delta .* (1 .- 2 .* theta_one_minus_theta) .+ (input_derivatives .+ input_derivatives_plus_one) .* theta_one_minus_theta
+        derivative_numerator = (input_delta .^ 2) .* (input_derivatives_plus_one .* root .^ 2 .+ 2 .* input_delta .* theta_one_minus_theta .+ input_derivatives .* (1 .- root) .^ 2)
+        rq_logabsdet = -(log.(derivative_numerator) .- 2 .* log.(denominator))
     else
-        theta = (clamped_inputs .- input_cumwidths) ./ input_bin_widths
+        theta = _clamp01.((clamped_inputs .- input_cumwidths) ./ input_bin_widths)
         theta_one_minus_theta = theta .* (1 .- theta)
-        
-        numerator = input_heights .* (input_delta .* theta.^2 .+ input_derivatives .* theta_one_minus_theta)
-        denominator = input_delta .+ ((input_derivatives .+ input_derivatives_plus_one .- 2 .* input_delta) .* theta_one_minus_theta)
+
+        denominator = input_delta .* (1 .- 2 .* theta_one_minus_theta) .+ (input_derivatives .+ input_derivatives_plus_one) .* theta_one_minus_theta
+        numerator = input_heights .* (input_delta .* theta .^ 2 .+ input_derivatives .* theta_one_minus_theta)
         rq_outputs = input_cumheights .+ numerator ./ denominator
-        
-        derivative_numerator = (input_delta.^2) .* (input_derivatives_plus_one .* theta.^2 .+ 2 .* input_delta .* theta_one_minus_theta .+ input_derivatives .* (1 .- theta).^2)
-        rq_logabsdet = log.(abs.(derivative_numerator) .+ T(1e-12)) .- 2 .* log.(abs.(denominator) .+ T(1e-12))
+
+        derivative_numerator = (input_delta .^ 2) .* (input_derivatives_plus_one .* theta .^ 2 .+ 2 .* input_delta .* theta_one_minus_theta .+ input_derivatives .* (1 .- theta) .^ 2)
+        rq_logabsdet = log.(derivative_numerator) .- 2 .* log.(denominator)
     end
-    
+
     # 7. Apply identity outside bounds
     outputs = ifelse.(inside_mask, rq_outputs, inputs)
     logabsdet = ifelse.(inside_mask, rq_logabsdet, zero(T))
