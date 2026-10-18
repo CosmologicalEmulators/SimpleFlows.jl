@@ -27,5 +27,7 @@ Manifest*.toml
 LocalPreferences.toml
 JuliaLocalPreferences.toml
 *.json
+!test/data/*.json
 *.npz
 /examples/training_output/
+/trained_flows/

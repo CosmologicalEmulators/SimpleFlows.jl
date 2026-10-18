@@ -4,7 +4,8 @@
                 validation_data, rng, eval_every, history, backend) -> FlowDistribution
 
 Train `flow` by minimising the negative log-likelihood of the normalised data
-with mini-batched Adam + Zygote. Returns `flow` (mutated in place).
+with mini-batched elementwise gradient clipping followed by Adam + Zygote by
+default. Returns `flow` (mutated in place).
 
 # Arguments
 - `flow::FlowDistribution`: the flow to train.
@@ -12,7 +13,9 @@ with mini-batched Adam + Zygote. Returns `flow` (mutated in place).
 
 # Keyword Arguments
 - `n_epochs=1000`: number of passes over the training data (`0` only evaluates).
-- `lr=1f-3`: Adam learning rate. `opt`: custom Optimisers.jl rule instead. The
+- `lr=1f-3`: default Adam learning rate (when omitted). `opt`: custom Optimisers.jl
+  rule replacing the entire default `OptimiserChain(ClipGrad(1), Adam(lr))`,
+  including clipping. Supplying both explicit `lr` and `opt` is an error. The
   optimizer state is created afresh on every call, so calling `train_flow!`
   repeatedly is **not** an exact optimizer resume (no moment carry-over).
 - `batch_size=256`: mini-batch size (also used for the full-data evaluations).
@@ -21,7 +24,8 @@ with mini-batched Adam + Zygote. Returns `flow` (mutated in place).
   evaluation as `history`; there is no mini-batch loss logging. With the default
   `eval_every=1` that is one log line per epoch, so use a larger interval for long runs.
 - `rng=Random.default_rng()`: RNG used to shuffle the batches; it is advanced in
-  place. Same seed, data and initial flow give identical weights and history.
+  place. Seeded Zygote runs with identical data and initial flows are reproducible;
+  cross-backend or cross-platform bitwise identity is not guaranteed.
 
 ## Backend
 - `backend=:zygote` (default): CPU training with Zygote.
@@ -81,7 +85,9 @@ before the optimizer update, and non-finite parameters produced by an update
 are also an error (also for the very last update); bad gradients are never
 skipped. An `lr` that is not finite and positive in the flow precision is an
 `ArgumentError`. On any error the
-flow's weights and normalizer are restored to their state at entry.
+flow's weights and normalizer are restored to their state at entry, not their
+best-so-far state. This includes an `InterruptException` delivered to Julia
+(e.g. Ctrl-C in the REPL); forcibly terminating a script/process cannot run rollback.
 """
 function train_flow!(flow::FlowDistribution{T}, data::AbstractMatrix;
                      n_epochs::Int=1000,
@@ -106,6 +112,8 @@ function train_flow!(flow::FlowDistribution{T}, data::AbstractMatrix;
     n_epochs >= 0 || throw(ArgumentError("n_epochs must be non-negative, got $n_epochs."))
     batch_size >= 1 || throw(ArgumentError("batch_size must be positive, got $batch_size."))
     eval_every >= 1 || throw(ArgumentError("eval_every must be positive, got $eval_every."))
+    isnothing(lr) || isnothing(opt) ||
+        throw(ArgumentError("Specify either lr or opt, not both; put the learning rate inside the custom optimizer."))
     isnothing(lr) || (lr > 0 && isfinite(lr)) || throw(ArgumentError("lr must be positive and finite, got $lr."))
 
     if isnothing(opt) && !isnothing(lr)
@@ -280,22 +288,23 @@ function _run_training!(e, flow::FlowDistribution, n_train::Int, has_val::Bool;
                         n_epochs, batch_size, verbose, rng, eval_every, history)
     loader = DataLoader(collect(1:n_train); batchsize=batch_size, shuffle=true, rng=rng)
     track = has_val || !isnothing(history) || verbose
-    best_nll = Inf
-    best_epoch = nothing
-    best_ps = nothing
+    # Explicit initialized state avoids boxed, reassigned closure captures.
+    best_nll = Ref(Inf)
+    best_epoch = Ref{Union{Nothing, Int}}(nothing)
+    best_ps = Ref{Any}(nothing)
 
     function evaluate!(epoch)
         track || return
         tr = _engine_nll(e, :train)
         va = has_val ? _engine_nll(e, :val) : nothing
-        if !isnothing(va) && va < best_nll
-            best_nll, best_epoch = va, epoch
-            best_ps = _engine_snapshot(e)
+        if !isnothing(va) && va < best_nll[]
+            best_nll[], best_epoch[] = va, epoch
+            best_ps[] = _engine_snapshot(e)
         end
-        isnothing(history) || push!(history, _history_entry(epoch, tr, va, best_epoch))
+        isnothing(history) || push!(history, _history_entry(epoch, tr, va, best_epoch[]))
         if verbose
             @info "Epoch $(lpad(epoch, 5)) | full-data physical NLL: train $(round(tr; digits=5))" *
-                  (isnothing(va) ? "" : " | validation $(round(va; digits=5)) | best epoch $best_epoch") epoch train_nll=tr validation_nll=va best_epoch
+                  (isnothing(va) ? "" : " | validation $(round(va; digits=5)) | best epoch $(best_epoch[])") epoch train_nll=tr validation_nll=va best_epoch=best_epoch[]
         end
         return
     end
@@ -311,8 +320,8 @@ function _run_training!(e, flow::FlowDistribution, n_train::Int, has_val::Bool;
         end
     end
 
-    if has_val && best_epoch != n_epochs
-        flow.ps = best_ps
+    if has_val && best_epoch[] != n_epochs
+        flow.ps = best_ps[]
     else
         flow.ps = _engine_snapshot(e)
     end

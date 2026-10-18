@@ -3,9 +3,9 @@ Train a RealNVP normalizing flow to approximate a 4-dimensional correlated Gauss
 then use Turing.jl to run NUTS inference under both the exact prior and the NF prior.
 
 Usage:
-    julia --project=. -t 4 examples/train_multinormal.jl
+    julia --project="\$(pwd)/examples" -t 4 examples/train_multinormal_nvp.jl
 
-Note: Turing.jl must be installed in your global environment or activated environment.
+Prepare the local examples environment as described in README.md.
 """
 
 using SimpleFlows
@@ -36,7 +36,7 @@ println("Target std:      ", round.(std(data; dims=2)[:]; digits=3))
 flow = FlowDistribution(Float64;
     n_transforms        = 6,
     dist_dims           = 4,
-    hidden_layer_sizes  = [16, 16, 16],   # 3 hidden layers of 64 neurons each
+    hidden_layer_sizes  = [16, 16, 16],   # 3 hidden layers of 16 neurons each
     rng,
 )
 
@@ -46,6 +46,8 @@ train_flow!(flow, data;
     lr         = 1e-3,
     batch_size = 512,
     verbose    = true,
+    eval_every = 10,
+    rng,
 )
 
 # ── 4. Evaluate fit ───────────────────────────────────────────────────────────
@@ -76,7 +78,7 @@ println("\nFlow saved to $save_dir")
 flow2 = load_trained_flow(save_dir; rng)
 lp_reloaded = mean(logpdf(flow2, x_test))
 println("Mean log-pdf after reload: ", round(Float64(lp_reloaded); digits=4))
-@assert lp_reloaded ≈ lp_flow  atol=1f-3  "Round-trip failed!"
+@assert isapprox(lp_reloaded, lp_flow; atol=1f-3) "Round-trip failed!"
 println("Round-trip OK ✓")
 
 # ── 7. Turing.jl inference demo ───────────────────────────────────────────────

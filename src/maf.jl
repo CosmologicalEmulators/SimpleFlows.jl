@@ -13,9 +13,9 @@ struct MAFBijector
 end
 
 """
-    inverse_and_log_det(b::MAFBijector, x::AbstractArray)
+    Bijectors.with_logabsdet_jacobian(b::MAFBijector, x::AbstractMatrix)
 
-Density estimation pass (Inverse): u = (x - m) * exp(-alpha). Fast O(1).
+Density pass: `u = (x - m) * exp(-alpha)`, using one parallel MADE evaluation.
 """
 function Bijectors.with_logabsdet_jacobian(b::MAFBijector, x::AbstractMatrix)
     # MADE(x) returns (m, log_alpha) concatenated
@@ -68,14 +68,6 @@ function forward_and_log_det(b::MAFBijector, u::AbstractMatrix)
     lad = sum(log_alpha_final; dims=1)
     
     return x, vec(lad)
-end
-
-# ── ReversePermute ──────────────────────────────────────────────────────────
-
-struct ReversePermute <: Lux.AbstractLuxLayer end
-
-function (l::ReversePermute)(x::AbstractArray, ps, st)
-    return x[end:-1:1, :], st
 end
 
 # ── MaskedAutoregressiveFlow ───────────────────────────────────────────────

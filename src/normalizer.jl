@@ -1,7 +1,6 @@
 # ── Min-Max Normalizer ────────────────────────────────────────────────────────
 
 """
-    MinMaxNormalizer(x_min, x_max)
     MinMaxNormalizer(data)
 
 Per-dimension min-max scaler that maps each feature to [0, 1].

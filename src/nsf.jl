@@ -5,10 +5,9 @@ using Random
 using LinearAlgebra
 
 """
-    NSFSplineBijector(mask, params, K, tail_bound)
+    NSFSplineBijector(params, K, tail_bound)
 
 A Neural Spline Flow (NSF) coupling layer using Rational Quadratic Splines.
-`mask` is a binary vector (1 for variables to transform, 0 for variables that condition).
 `params` is the output of the conditioner for the transformed dimensions.
 """
 # Bijectors and Layers for NSF
@@ -82,7 +81,7 @@ function NSFCouplingBijector_from_flat(params, K, tail_bound)
 end
 
 """
-    NeuralSplineFlow(; n_transforms, dist_dims, hidden_dims, n_layers, K=8, tail_bound=3.0, activation=gelu)
+    NeuralSplineFlow(; n_transforms, dist_dims, hidden_layer_sizes, K=8, tail_bound=3.0, activation=gelu)
 
 Neural Spline Flow (NSF) with rational quadratic coupling layers.
 """
@@ -119,16 +118,4 @@ end
 
 function Lux.initialstates(rng::AbstractRNG, m::NeuralSplineFlow)
     return (; mask_list=m.mask_list, conditioners=Lux.initialstates(rng, m.conditioners))
-end
-
-
-# Helper to build the bijector from flat parameters
-struct NSFSplineConstructor
-    mask
-    K::Int
-    tail_bound::Float64
-end
-
-function (c::NSFSplineConstructor)(params)
-    return NSFSplineBijector(c.mask, params, c.K, c.tail_bound)
 end

@@ -7,6 +7,9 @@ Reactant = "3c362404-f566-11ee-1572-e11a4b42c853"
 SimpleFlows = "7aff1418-a6e2-48c2-ba03-ae8e32e98757"
 Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 
+[sources]
+SimpleFlows = {path = "../.."}
+
 [compat]
 Distributions = "0.25"
 Enzyme = "0.13.216"

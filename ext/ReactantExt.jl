@@ -2,7 +2,7 @@ module ReactantExt
 
 using SimpleFlows
 using Reactant
-using Lux, Optimisers   # parent dependencies; Lux's own Reactant extension needs Enzyme loaded too
+using Lux   # Lux's own Reactant extension needs Enzyme loaded too
 
 # Reactant-specific array type aliases for vectors and matrices.
 # Used for dispatch since Reactant does not currently export a stable public abstract supertype.
@@ -95,8 +95,9 @@ end
 # `LowerTriangular(L) \ y` lowers to `stablehlo.triangular_solve`. With
 # Reactant v0.2.295 / Enzyme v0.13.216 (Julia 1.12.6) the forward pass compiles but the Enzyme reverse
 # pass fails ("could not compute the adjoint for this operation
-# stablehlo.triangular_solve"); see test/reactant_trisolve_repro.jl and
-# STAGE3_REPORT.md for the reproduction. Instead solve `L z = y` by forward substitution over
+# stablehlo.triangular_solve"). Compiled whitening density and input-gradient
+# regressions are covered unconditionally in test/test_reactant.jl.
+# Instead solve `L z = y` by forward substitution over
 # the (static) dimension: still a triangular solve, no explicit inverse, built
 # only from statically-indexed slices, matmuls and broadcasts, hence
 # differentiable and free of scalar indexing.

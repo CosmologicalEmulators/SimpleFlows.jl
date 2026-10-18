@@ -1,7 +1,6 @@
 # src/splines.jl
 using NNlib
 using ChainRulesCore
-using ForwardDiff
 
 function gather_from_matrix(A::AbstractMatrix, indices::AbstractVector)
     M = size(A, 1)
@@ -30,7 +29,9 @@ _clamp01(v) = ifelse(v < 0, zero(v), ifelse(v > 1, one(v), v))
 _safe_sqrt(v) = ifelse(v > 0, sqrt(ifelse(v > 0, v, one(v))), zero(v))
 
 """
-    unconstrained_rational_quadratic_spline(inputs, widths, heights, derivs; kwargs...)
+    unconstrained_rational_quadratic_spline(inputs, widths, heights, derivs,
+        tail_bound=3.0, min_bin_width=1e-3, min_bin_height=1e-3,
+        min_derivative=1e-3; inverse=false)
 
 Inputs:
 - `inputs`: Vector of length M.

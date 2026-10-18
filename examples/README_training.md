@@ -9,7 +9,7 @@ With Julia 1.12, from the repository root, prepare the dedicated local training
 environment (separate from the legacy Turing examples):
 
 ```sh
-julia --project="$(pwd)/examples/training" -e 'using Pkg; Pkg.develop(path=pwd()); Pkg.instantiate()'
+julia --project="$(pwd)/examples/training" -e 'using Pkg; Pkg.instantiate()'
 ```
 
 Start with the short end-to-end smoke run:
@@ -44,15 +44,19 @@ environment declares minimum Reactant/Enzyme versions for this training recipe.
   This is learning-rate decay, not weight decay, and does not restart training.
 - Full-dataset physical training/validation NLL every ten epochs, including epoch
   zero. `history` is written to each flow's `losses.csv` after its training call.
-- Global best-validation weights are restored by `train_flow!`, saved, reloaded,
+- Best-validation weights among evaluated epochs are restored by `train_flow!`, saved, reloaded,
   and checked against the original model. The independent test set is used only
   for the final reported score, never checkpoint selection.
 - Drawing 2000 finite samples from the restored flow. Logged training-call time
   includes compilation and evaluation; it is not a prepared-update benchmark.
 
-`--smoke` keeps all ten stages but uses two epochs per stage and smaller datasets.
+`--smoke` keeps all ten stages but uses two epochs per stage, batch size 64,
+and smaller datasets.
 The default output is `examples/training_output/` (gitignored); existing output
 directories are never overwritten. No automatic early stopping is enabled:
 the requested budget runs in full, but only the best-validation network is exported.
 This example saves deployment artifacts, not resumable full optimizer checkpoints.
+Any training exception delivered to Julia restores the flow's entry state;
+an interrupted call does not export its best-so-far network. Forcible process
+termination cannot run rollback or export code.
 More epochs or capacity do not guarantee improved validation loss.

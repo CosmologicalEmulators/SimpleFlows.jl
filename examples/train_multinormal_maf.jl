@@ -43,8 +43,9 @@ function run_maf_example()
     )
 
     # ── 3. Train ──────────────────────────────────────────────────────────────
-    # We use a smaller learning rate for MAF as it can be more sensitive
-    train_flow!(dist, target_data; n_epochs=500, batch_size=200, opt=Optimisers.Adam(1e-3))
+    # Use the package's clipping + Adam default, with coarse full-data logging.
+    train_flow!(dist, target_data; n_epochs=500, batch_size=200,
+        lr=1f-3, eval_every=10, rng)
 
     # ── 4. Evaluate Density ──────────────────────────────────────────────────
     test_data = rand(rng, true_dist, 1000)
@@ -71,7 +72,7 @@ function run_maf_example()
     if isapprox(mean(lp_flow), mean(lp_reloaded), atol=1e-5)
         println("Round-trip OK ✓")
     else
-        println("Round-trip FAILED ✗")
+        error("Round-trip failed")
     end
 
     # ── 6. Turing.jl Integration ───────────────────────────────────────────

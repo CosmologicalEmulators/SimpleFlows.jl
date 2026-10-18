@@ -14,6 +14,7 @@ jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
@@ -31,21 +32,35 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - uses: actions/cache@v4
-        env:
-          cache-name: cache-artifacts
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-test-${{ env.cache-name }}-
-            ${{ runner.os }}-test-
-            ${{ runner.os }}-
-          
+      - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-runtest@v1
+      - name: Standalone CPU examples (both training backends)
+        if: matrix.version == '1.12'
+        run: |
+          julia --project="$PWD/examples/training" -e 'using Pkg; Pkg.instantiate()'
+          julia --project="$PWD/examples/training" examples/train_all_flows_long.jl --smoke --output "$RUNNER_TEMP/flows-reactant"
+          julia --project="$PWD/examples/training" examples/train_all_flows_long.jl --smoke --zygote --output "$RUNNER_TEMP/flows-zygote"
+          julia --project="$PWD/examples/training" examples/compile_reactant_example.jl
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v4
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
           file: lcov.info
+  minimum-compatible:
+    name: Minimum jointly compatible dependencies - Julia 1.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.12'
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-downgrade-compat@v2
+        with:
+          mode: alldeps
+      - uses: julia-actions/julia-runtest@v1
+        with:
+          allow_reresolve: false
+          force_latest_compatible_version: false

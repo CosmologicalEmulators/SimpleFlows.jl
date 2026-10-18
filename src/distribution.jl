@@ -1,11 +1,12 @@
 """
-    FlowDistribution(model, ps, st, n_dims, hidden_dims, n_layers, normalizer)
+    FlowDistribution([Type=Float32]; architecture=:RealNVP, n_transforms,
+                     dist_dims, hidden_layer_sizes, kwargs...)
 
 A trained normalizing flow wrapped as a `Distributions.jl`
 `ContinuousMultivariateDistribution`, usable directly in `Turing.jl` models.
 
 # Fields
-- `model`: the `RealNVP` Lux model
+- `model`: the RealNVP, NeuralSplineFlow or MaskedAutoregressiveFlow Lux model
 - `ps`: trained parameters (NamedTuple)
 - `st`: Lux state (NamedTuple)
 - `n_dims`, `hidden_layer_sizes`: architecture metadata for serialization
@@ -21,7 +22,21 @@ mutable struct FlowDistribution{T<:Real, M<:AbstractLuxLayer} <: ContinuousMulti
     hidden_layer_sizes :: Vector{Int}
     normalizer         :: Union{Nothing, MinMaxNormalizer{T}, WhiteningNormalizer{T}}
     parameter_names    :: Union{Nothing, Vector{String}}
+
+    # Precision cannot be inferred from a missing normalizer. An explicit inner
+    # constructor avoids generating an outer method with an unbound T.
+    function FlowDistribution{T, M}(model, ps, st, n_dims, hidden_layer_sizes,
+                                    normalizer, parameter_names) where {T<:Real, M<:AbstractLuxLayer}
+        return new{T, M}(model, ps, st, n_dims, hidden_layer_sizes, normalizer, parameter_names)
+    end
 end
+
+# Preserve the inferable fitted-normalizer positional constructor. Without a
+# normalizer, callers must select the precision through the keyword constructor.
+FlowDistribution(model::M, ps, st, n_dims::Int, hidden_layer_sizes::Vector{Int},
+                 normalizer::Union{MinMaxNormalizer{T}, WhiteningNormalizer{T}},
+                 parameter_names::Union{Nothing, Vector{String}}) where {T<:Real, M<:AbstractLuxLayer} =
+    FlowDistribution{T, M}(model, ps, st, n_dims, hidden_layer_sizes, normalizer, parameter_names)
 
 function _check_parameter_names(names, n_dims::Int)
     names isa AbstractVector && all(n -> n isa AbstractString, names) || throw(ArgumentError("parameter_names must be a vector of strings."))
@@ -30,7 +45,7 @@ function _check_parameter_names(names, n_dims::Int)
     return String.(names)
 end
 
-# Convenience constructor without names (used by the Reactant conversion of older code paths).
+# Convenience constructor without parameter names.
 FlowDistribution{T, M}(model, ps, st, n_dims, hidden_layer_sizes, normalizer) where {T<:Real, M<:AbstractLuxLayer} =
     FlowDistribution{T, M}(model, ps, st, n_dims, hidden_layer_sizes, normalizer, nothing)
 
@@ -51,7 +66,7 @@ Construct and initialise a `FlowDistribution`. `architecture` can be `:RealNVP`,
   normalizer's Jacobian once one is attached), instead of random affine layers that can amplify
   tails exponentially (e.g. a 3-layer RealNVP on whitened data overflowed the Float32 Gaussian
   base before any update). Gradients of the head layers are non-zero from the first step, so
-  training is unaffected; the hidden layers receive gradient after the first update.
+  training can start immediately; hidden layers receive gradient after the first update.
 - `identity_init=false`: the legacy initialization (all layers random), reproduced exactly from
   the same `rng`. The random stream is consumed identically in both modes, so hidden layers are
   identical between them. Saved artifacts store the weights, so loading never depends on this flag.
@@ -132,13 +147,15 @@ end
 Distributions.length(d::FlowDistribution) = d.n_dims
 
 function _apply_normalizer(d::FlowDistribution{T}, x::AbstractMatrix) where {T}
-    isnothing(d.normalizer) && return x, zero(T)
-    return SimpleFlows.normalize(d.normalizer, x), _normalizer_log_jac(d.normalizer)
+    normalizer = d.normalizer
+    normalizer === nothing && return x, zero(T)
+    return SimpleFlows.normalize(normalizer, x), _normalizer_log_jac(normalizer)
 end
 
 function _apply_normalizer(d::FlowDistribution{T}, x::AbstractVector) where {T}
-    isnothing(d.normalizer) && return x, zero(T)
-    return SimpleFlows.normalize(d.normalizer, x), _normalizer_log_jac(d.normalizer)
+    normalizer = d.normalizer
+    normalizer === nothing && return x, zero(T)
+    return SimpleFlows.normalize(normalizer, x), _normalizer_log_jac(normalizer)
 end
 
 # Widened to AbstractVector (instead of AbstractVector{<:Real}) to allow Reactant traced arrays
@@ -160,14 +177,16 @@ end
 
 function Base.rand(rng::AbstractRNG, d::FlowDistribution{T}) where {T}
     z = draw_samples(rng, T, d.model, d.ps, d.st, 1)
-    x = isnothing(d.normalizer) ? z : SimpleFlows.denormalize(d.normalizer, z)
+    normalizer = d.normalizer
+    x = normalizer === nothing ? z : SimpleFlows.denormalize(normalizer, z)
     return T.(vec(x))
 end
 
 function Distributions.rand(rng::AbstractRNG, d::FlowDistribution{T}, n::Int) where {T}
     z = draw_samples(rng, T, d.model, d.ps, d.st, n)
-    isnothing(d.normalizer) && return z
-    return SimpleFlows.denormalize(d.normalizer, z)
+    normalizer = d.normalizer
+    normalizer === nothing && return z
+    return SimpleFlows.denormalize(normalizer, z)
 end
 
 # ── Bijectors.jl interface ───────────────────────────────────────────────────
