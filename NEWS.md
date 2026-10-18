@@ -24,3 +24,5 @@
 - `WhiteningNormalizer` and `load_parameter_names` are new exports. The core
   Julia compatibility floor is 1.10; Turing integration is tested with 0.43 and
   Bijectors 0.15. ForwardDiff is test-only rather than a runtime dependency.
+- Distributions requires 0.25.117 or later: older versions lack
+  `ProductNamedTupleDistribution`, which the compatible Bijectors versions use.
