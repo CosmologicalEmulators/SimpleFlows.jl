@@ -3,9 +3,9 @@ Train a Neural Spline Flow (NSF) normalizing flow to approximate a 4-dimensional
 then use Turing.jl to run NUTS inference under both the exact prior and the NF prior.
 
 Usage:
-    julia --project=. -t 4 examples/train_multinormal_nsf.jl
+    julia --project="\$(pwd)/examples" -t 4 examples/train_multinormal_nsf.jl
 
-Note: Turing.jl must be installed in your global environment or activated environment.
+Prepare the local examples environment as described in README.md.
 """
 
 using SimpleFlows
@@ -51,6 +51,8 @@ train_flow!(flow, data;
     lr         = 1e-3,
     batch_size = 512,
     verbose    = true,
+    eval_every = 10,
+    rng,
 )
 
 # ── 4. Evaluate fit ───────────────────────────────────────────────────────────
@@ -81,7 +83,7 @@ println("\nFlow saved to $save_dir")
 flow2 = load_trained_flow(save_dir; rng)
 lp_reloaded = mean(logpdf(flow2, x_test))
 println("Mean log-pdf after reload: ", round(Float64(lp_reloaded); digits=4))
-@assert lp_reloaded ≈ lp_flow  atol=1f-3  "Round-trip failed!"
+@assert isapprox(lp_reloaded, lp_flow; atol=1f-3) "Round-trip failed!"
 println("Round-trip OK ✓")
 
 # ── 7. Turing.jl inference demo ───────────────────────────────────────────────

@@ -13,7 +13,7 @@ end
 # ── RealNVP ───────────────────────────────────────────────────────────────────
 
 """
-    RealNVP(; n_transforms, dist_dims, hidden_dims, n_layers, activation=gelu)
+    RealNVP(; n_transforms, dist_dims, hidden_layer_sizes, activation=gelu)
 
 Real-valued Non-Volume Preserving (RealNVP) normalizing flow.
 Each coupling layer is conditioned by an MLP producing affine parameters.

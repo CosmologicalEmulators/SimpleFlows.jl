@@ -96,8 +96,7 @@ using LinearAlgebra
     end
     
     @testset "Integrated MAF Model" begin
-        dist = FlowDistribution(Float32; 
-            architecture=:MAF,
+        dist = FlowDistribution(Float32; identity_init=false, architecture=:MAF,
             n_transforms=2, 
             dist_dims=D,
             hidden_dims=16,

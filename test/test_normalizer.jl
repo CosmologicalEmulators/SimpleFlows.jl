@@ -43,7 +43,7 @@
     @test n.log_jac ≈ expected_log_jac  atol=1f-5
 
     # Verify logpdf correction is applied
-    flow = FlowDistribution(; n_transforms=2, dist_dims=dims,
+    flow = FlowDistribution(; identity_init=false, n_transforms=2, dist_dims=dims,
                                hidden_dims=16, n_layers=2, rng)
     train_flow!(flow, data; n_epochs=5, lr=1f-3, verbose=false)
 

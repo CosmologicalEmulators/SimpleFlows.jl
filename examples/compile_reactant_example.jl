@@ -3,7 +3,7 @@
 #
 # A complete standalone example demonstrating how to train a normalizing flow
 # using the standard pipeline, port the trained weights to Reactant, and JIT-compile
-# it for high-performance inference/evaluation.
+# it for CPU-XLA inference/evaluation (no performance claim).
 
 using SimpleFlows
 using Random
@@ -13,12 +13,8 @@ using Reactant
 
 function main()
     # 1. Setup seed and device backend
-    try
-        Reactant.set_default_backend("cpu")
-        println("Using Reactant CPU-XLA backend.")
-    catch
-        println("Using Reactant default GPU/TPU accelerator backend.")
-    end
+    Reactant.set_default_backend("cpu")
+    println("Using Reactant CPU-XLA backend.")
 
     rng = Random.MersenneTwister(42)
 
@@ -56,7 +52,7 @@ function main()
     # JIT-compile the logpdf function
     compiled_logpdf = Reactant.@compile logpdf(flow_react, x_react)
     
-    # Run the compiled function (first call compiles, subsequent calls are near-instant)
+    # Reuse the compiled callable with matching shapes and types.
     log_probs = compiled_logpdf(flow_react, x_react)
     
     println("Data:")

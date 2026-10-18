@@ -17,7 +17,7 @@ println("Starting AD tests...")
     for arch in architectures
         println("Testing architecture: ", arch)
         @testset "$arch" begin
-            d = FlowDistribution(Float64; architecture=arch, n_transforms=2, dist_dims=n_dims, hidden_layer_sizes=[16, 16], n_layers=2)
+            d = FlowDistribution(Float64; identity_init=false, architecture=arch, n_transforms=2, dist_dims=n_dims, hidden_layer_sizes=[16, 16], n_layers=2)
             x = rand(rng, n_dims)
             
             f(x) = logpdf(d, x)

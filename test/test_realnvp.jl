@@ -3,7 +3,7 @@
     rng  = Random.MersenneTwister(3)
     dims = 4
 
-    flow = FlowDistribution(; n_transforms=4, dist_dims=dims,
+    flow = FlowDistribution(; identity_init=false, n_transforms=4, dist_dims=dims,
                                hidden_layer_sizes=[32, 32], rng)
 
     @testset "Interface" begin
