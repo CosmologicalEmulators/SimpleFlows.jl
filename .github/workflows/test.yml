@@ -60,6 +60,8 @@ jobs:
       - uses: julia-actions/julia-downgrade-compat@v2
         with:
           mode: alldeps
+          # Keep test-only dependencies out of the package's runtime metadata.
+          projects: '., test'
       - uses: julia-actions/julia-runtest@v1
         with:
           allow_reresolve: false
