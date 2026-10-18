@@ -148,6 +148,12 @@ julia --project=. -e "using Pkg; Pkg.test()"
 
 ## Running the Examples
 
+For a self-contained synthetic example covering **RealNVP, NSF and MAF**, see
+[long training with staged learning-rate decay](examples/README_training.md).
+It demonstrates Reactant/Enzyme or Zygote training, validation-based model
+selection, loss histories, saving/loading and sampling, with both smoke and
+10,000-epoch modes.
+
 ```bash
 julia --project=. examples/train_multinormal.jl
 julia --project=. examples/train_multinormal_nsf.jl
