@@ -13,8 +13,7 @@ using Distributions
     K = 4
     
     # 1. Initialization
-    dist = FlowDistribution(Float32; 
-        architecture=:NSF,
+    dist = FlowDistribution(Float32; identity_init=false, architecture=:NSF,
         n_transforms=n_transforms, 
         dist_dims=dist_dims,
         hidden_dims=16,

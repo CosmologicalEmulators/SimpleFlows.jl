@@ -46,7 +46,7 @@ end
     for (arch_name, kwargs) in architectures
         @testset "Architecture: $arch_name" begin
             # 1. Construct flow on CPU and fit normalizer
-            flow_cpu = FlowDistribution(Float32; kwargs...)
+            flow_cpu = FlowDistribution(Float32; identity_init=false, kwargs...)
             
             # Fit min-max normalizer manually to test normalizer compatibility
             data_fit = randn(rng, Float32, dist_dims, 100)
@@ -84,7 +84,7 @@ end
     end
 
     @testset "to_reactant without normalizer" begin
-        flow_cpu = FlowDistribution(Float32; architecture=:RealNVP, n_transforms=1,
+        flow_cpu = FlowDistribution(Float32; identity_init=false, architecture=:RealNVP, n_transforms=1,
                                     dist_dims=2, hidden_layer_sizes=[4], rng=rng)
         flow_react = to_reactant(flow_cpu)
         @test flow_react.normalizer === nothing
@@ -97,7 +97,7 @@ end
 
     @testset "Loaded trained flow can be converted and compiled" begin
         # 1. Create a flow on CPU
-        flow_cpu = FlowDistribution(Float32; architecture=:RealNVP, n_transforms=2,
+        flow_cpu = FlowDistribution(Float32; identity_init=false, architecture=:RealNVP, n_transforms=2,
                                     dist_dims=3, hidden_layer_sizes=[8, 8], rng=rng)
         # Attach a normalizer
         flow_cpu.normalizer = MinMaxNormalizer(randn(rng, Float32, 3, 10))
@@ -122,3 +122,37 @@ end
     end
 end
 
+
+@testset "Reactant whitening normalizer" begin
+    Reactant.set_default_backend("cpu")
+    for T in (Float32, Float64), arch in (:RealNVP, :NSF, :MAF)
+        @testset "$arch $T" begin
+            rng = Random.MersenneTwister(31)
+            kw = (; architecture=arch, n_transforms=2, dist_dims=3, hidden_layer_sizes=[8], rng)
+            flow_cpu = arch == :NSF ? FlowDistribution(T; identity_init=false, kw..., K=4, tail_bound=3.0) : FlowDistribution(T; identity_init=false, kw...)
+            A = T.([1.0 0.3 0.0; -0.2 0.8 0.1; 0.0 0.2 1.5])
+            flow_cpu.normalizer = WhiteningNormalizer(A * randn(rng, T, 3, 60) .+ T[1, -1, 0])
+
+            tmp = mktempdir()                     # exercise a loaded flow, not only a fresh one
+            save_trained_flow(tmp, flow_cpu)
+            flow_cpu = load_trained_flow(tmp)
+            flow_react = to_reactant(flow_cpu)
+            @test flow_react.normalizer isa WhiteningNormalizer
+            @test flow_react.normalizer.chol isa Reactant.ConcretePJRTArray
+
+            rtol = T == Float32 ? 1e-4 : 1e-9
+            atol = T == Float32 ? 1e-4 : 1e-9
+            x1 = randn(rng, T, 3, 6); x1r = Reactant.to_rarray(x1)
+            f = Reactant.@compile sync=true evaluate_flow_logpdf(x1r, flow_react)
+            @test Array(f(x1r, flow_react)) ≈ logpdf(flow_cpu, x1) rtol=rtol atol=atol
+
+            g = Reactant.@compile sync=true compile_gradient_wrt_x(x1r, flow_react)
+            @test Array(g(x1r, flow_react)) ≈ Zygote.gradient(v -> sum(logpdf(flow_cpu, v)), x1)[1] rtol=10rtol atol=10atol
+
+            # new input values through the same compiled functions
+            x2 = randn(rng, T, 3, 6) .* T(0.5); x2r = Reactant.to_rarray(x2)
+            @test Array(f(x2r, flow_react)) ≈ logpdf(flow_cpu, x2) rtol=rtol atol=atol
+            @test Array(g(x2r, flow_react)) ≈ Zygote.gradient(v -> sum(logpdf(flow_cpu, v)), x2)[1] rtol=10rtol atol=10atol
+        end
+    end
+end
